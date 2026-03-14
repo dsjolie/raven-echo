@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raven Echo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: #0b0b14;
+    color: #c9d1d9;
+    line-height: 1.7;
+  }
+
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 48px;
+    background: rgba(11, 11, 20, 0.95);
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    display: flex;
+    align-items: center;
+    padding: 0 1.5em;
+    gap: 1.5em;
+    z-index: 10;
+    backdrop-filter: blur(8px);
+  }
+
+  nav a {
+    color: #60a5fa;
+    text-decoration: none;
+    font-size: 0.85em;
+  }
+
+  nav a:hover { text-decoration: underline; }
+
+  nav .title {
+    color: #e2e8f0;
+    font-weight: 600;
+    font-size: 0.9em;
+  }
+
+  nav .sep { color: #334155; }
+
+  .content {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 72px 2em 4em;
+  }
+
+  /* Markdown rendering */
+  .content h1 {
+    font-size: 1.8em;
+    color: #e2e8f0;
+    font-weight: 700;
+    margin-bottom: 0.5em;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .content h2 {
+    font-size: 1.35em;
+    color: #e2e8f0;
+    font-weight: 600;
+    margin-top: 2em;
+    margin-bottom: 0.5em;
+  }
+
+  .content h3 {
+    font-size: 1.1em;
+    color: #e2e8f0;
+    font-weight: 600;
+    margin-top: 1.5em;
+    margin-bottom: 0.4em;
+  }
+
+  .content p {
+    margin-bottom: 1em;
+    color: #c9d1d9;
+  }
+
+  .content a {
+    color: #60a5fa;
+    text-decoration: none;
+  }
+
+  .content a:hover { text-decoration: underline; }
+
+  .content ul, .content ol {
+    margin-bottom: 1em;
+    padding-left: 1.5em;
+  }
+
+  .content li {
+    margin-bottom: 0.3em;
+  }
+
+  .content strong { color: #e2e8f0; }
+
+  .content code {
+    background: rgba(255,255,255,0.06);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+    font-size: 0.88em;
+    color: #e2e8f0;
+  }
+
+  .content pre {
+    background: #161625;
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 8px;
+    padding: 1.2em 1.5em;
+    overflow-x: auto;
+    margin-bottom: 1em;
+  }
+
+  .content pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.85em;
+    line-height: 1.5;
+  }
+
+  .content blockquote {
+    border-left: 3px solid #334155;
+    padding-left: 1em;
+    margin-bottom: 1em;
+    color: #8b95a5;
+  }
+
+  .content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1em;
+  }
+
+  .content th, .content td {
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 0.5em 0.8em;
+    text-align: left;
+  }
+
+  .content th {
+    background: rgba(255,255,255,0.04);
+    color: #e2e8f0;
+    font-weight: 600;
+  }
+
+  .content hr {
+    border: none;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    margin: 2em 0;
+  }
+
+  .loading {
+    text-align: center;
+    padding: 4em;
+    color: #64748b;
+  }
+
+  @media (max-width: 600px) {
+    .content { padding: 60px 1em 3em; }
+    .content h1 { font-size: 1.4em; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="overview.html" class="title">Raven Echo</a>
+  <span class="sep">/</span>
+  <a href="overview.html">Overview</a>
+  <a href="https://github.com/dsjolie/raven-echo">GitHub</a>
+</nav>
+
+<div class="content" id="content">
+  <div class="loading">Loading...</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script>
+  const file = new URLSearchParams(location.search).get('file');
+  const el = document.getElementById('content');
+
+  if (!file) {
+    el.innerHTML = '<p>No file specified. <a href="overview.html">Back to overview</a>.</p>';
+  } else {
+    // Update page title
+    const name = file.split('/').pop().replace('.md', '');
+    document.title = name.charAt(0).toUpperCase() + name.slice(1) + ' — Raven Echo';
+
+    // Add breadcrumb
+    const parts = file.split('/');
+    const breadcrumb = document.querySelector('nav .sep');
+    if (parts.length > 1) {
+      const folder = document.createElement('a');
+      folder.href = 'overview.html';
+      folder.textContent = parts[0];
+      breadcrumb.after(document.createTextNode(' '), folder);
+    }
+
+    fetch(file)
+      .then(r => {
+        if (!r.ok) throw new Error('Not found');
+        return r.text();
+      })
+      .then(md => {
+        // Rewrite .md links to go through viewer
+        const html = marked.parse(md);
+        el.innerHTML = html.replace(
+          /href="([^"]*\.md)"/g,
+          (match, path) => {
+            // Resolve relative paths
+            const dir = file.includes('/') ? file.substring(0, file.lastIndexOf('/') + 1) : '';
+            const resolved = path.startsWith('../') ? path.slice(3) : (path.startsWith('./') ? dir + path.slice(2) : (path.includes('/') ? path : dir + path));
+            return `href="viewer.html?file=${resolved}"`;
+          }
+        );
+      })
+      .catch(() => {
+        el.innerHTML = '<p>File not found. <a href="overview.html">Back to overview</a>.</p>';
+      });
+  }
+</script>
+</body>
+</html>

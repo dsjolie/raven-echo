@@ -9,7 +9,7 @@ This repository captures the interesting parts — architecture decisions, reusa
 1. **Developers** building similar systems (AI-assisted tools, coding agent extensions, local-first workflows)
 2. **AI agents** that could use these documents to bootstrap an equivalent system from scratch
 
-**[Visual overview](overview.html)** — a designed one-page overview with architecture diagram and navigation.
+**[Visual overview](https://dsjolie.github.io/raven-echo/overview.html)** — a designed one-page overview with architecture diagram and navigation.
 
 ## Contents
 

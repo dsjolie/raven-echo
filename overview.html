@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raven — Extending Claude Code</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: #0b0b14;
+    color: #c9d1d9;
+    line-height: 1.65;
+  }
+
+  /* --- Hero --- */
+  .hero {
+    text-align: center;
+    padding: 5em 2em 3em;
+    background: linear-gradient(165deg, #0b0b14 0%, #111827 40%, #0f172a 100%);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .hero h1 {
+    font-size: 2.8em;
+    font-weight: 700;
+    color: #e2e8f0;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.3em;
+  }
+
+  .hero h1 span { color: #60a5fa; }
+
+  .hero .subtitle {
+    font-size: 1.15em;
+    color: #8b95a5;
+    max-width: 580px;
+    margin: 0 auto 2.5em;
+  }
+
+  /* --- Architecture diagram --- */
+  .arch {
+    max-width: 680px;
+    margin: 0 auto 3em;
+    padding: 2em 2.5em;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 16px;
+    text-align: left;
+  }
+
+  .arch-title {
+    font-size: 0.7em;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #64748b;
+    margin-bottom: 1.5em;
+  }
+
+  .arch-layer {
+    display: flex;
+    align-items: stretch;
+    margin-bottom: 0.5em;
+  }
+
+  .arch-core {
+    background: linear-gradient(135deg, #1e3a5f, #1e40af);
+    border-radius: 10px;
+    padding: 1.2em 1.5em;
+    flex: 1;
+    text-align: center;
+    margin-bottom: 0.6em;
+  }
+
+  .arch-core .name {
+    font-size: 1.1em;
+    font-weight: 600;
+    color: #93c5fd;
+  }
+
+  .arch-core .desc {
+    font-size: 0.8em;
+    color: #64748b;
+    margin-top: 0.2em;
+  }
+
+  .arch-connector {
+    text-align: center;
+    color: #334155;
+    font-size: 1.2em;
+    padding: 0.2em 0;
+  }
+
+  .arch-extensions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5em;
+  }
+
+  .arch-ext {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 0.8em 1em;
+    text-align: center;
+  }
+
+  .arch-ext .icon {
+    font-size: 1.3em;
+    margin-bottom: 0.3em;
+  }
+
+  .arch-ext .name {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: #a5d6a7;
+  }
+
+  .arch-ext .desc {
+    font-size: 0.7em;
+    color: #64748b;
+    margin-top: 0.15em;
+  }
+
+  .arch-ext.skills { border-color: rgba(129, 199, 132, 0.25); }
+  .arch-ext.hooks  { border-color: rgba(255, 183, 77, 0.25); }
+  .arch-ext.hooks .name { color: #ffb74d; }
+  .arch-ext.webui  { border-color: rgba(129, 212, 250, 0.25); }
+  .arch-ext.webui .name { color: #81d4fa; }
+  .arch-ext.tasks  { border-color: rgba(206, 147, 216, 0.25); }
+  .arch-ext.tasks .name { color: #ce93d8; }
+  .arch-ext.memory { border-color: rgba(255, 138, 128, 0.25); }
+  .arch-ext.memory .name { color: #ff8a80; }
+  .arch-ext.sandbox { border-color: rgba(255, 213, 79, 0.25); }
+  .arch-ext.sandbox .name { color: #ffd54f; }
+
+  .arch-motto {
+    text-align: center;
+    font-size: 0.8em;
+    color: #475569;
+    font-style: italic;
+    margin-top: 1.2em;
+    padding-top: 1em;
+    border-top: 1px solid rgba(255,255,255,0.05);
+  }
+
+  /* --- Strategy --- */
+  .strategy {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 2em 3em;
+    text-align: center;
+  }
+
+  .strategy p {
+    font-size: 1.05em;
+    color: #8b95a5;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .strategy em { color: #94a3b8; font-style: normal; }
+
+  /* --- Sections --- */
+  .section {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 3em 2em;
+  }
+
+  .section-header {
+    text-align: center;
+    margin-bottom: 2em;
+  }
+
+  .section-header h2 {
+    font-size: 1.6em;
+    color: #e2e8f0;
+    font-weight: 600;
+    margin-bottom: 0.3em;
+  }
+
+  .section-header p {
+    color: #64748b;
+    font-size: 0.95em;
+  }
+
+  .section + .section {
+    border-top: 1px solid rgba(255,255,255,0.05);
+  }
+
+  /* --- Cards --- */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1em;
+  }
+
+  .card {
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 10px;
+    padding: 1.3em 1.5em;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.2s, background 0.2s;
+    display: block;
+  }
+
+  .card:hover {
+    border-color: rgba(96, 165, 250, 0.3);
+    background: rgba(255,255,255,0.04);
+  }
+
+  .card .card-title {
+    font-size: 0.95em;
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-bottom: 0.4em;
+  }
+
+  .card .card-desc {
+    font-size: 0.82em;
+    color: #64748b;
+    line-height: 1.5;
+  }
+
+  .card .card-tag {
+    display: inline-block;
+    font-size: 0.65em;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0.2em 0.6em;
+    border-radius: 4px;
+    margin-bottom: 0.6em;
+  }
+
+  .tag-pattern { background: rgba(129, 199, 132, 0.15); color: #a5d6a7; }
+  .tag-solution { background: rgba(129, 212, 250, 0.15); color: #81d4fa; }
+
+  /* --- Principles --- */
+  .principles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1em;
+  }
+
+  .principle {
+    padding: 1.2em 1.4em;
+    background: rgba(255,255,255,0.02);
+    border-left: 3px solid #334155;
+    border-radius: 0 8px 8px 0;
+  }
+
+  .principle .rule {
+    font-size: 0.9em;
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-bottom: 0.3em;
+  }
+
+  .principle .why {
+    font-size: 0.78em;
+    color: #64748b;
+    line-height: 1.5;
+  }
+
+  /* --- About / Footer --- */
+  .about {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 3em 2em 4em;
+    text-align: center;
+    border-top: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .about h2 {
+    font-size: 1.3em;
+    color: #e2e8f0;
+    margin-bottom: 0.6em;
+  }
+
+  .about p {
+    font-size: 0.9em;
+    color: #64748b;
+    max-width: 560px;
+    margin: 0 auto 0.8em;
+    line-height: 1.6;
+  }
+
+  .about a {
+    color: #60a5fa;
+    text-decoration: none;
+  }
+
+  .about a:hover { text-decoration: underline; }
+
+  /* --- Responsive --- */
+  @media (max-width: 600px) {
+    .hero h1 { font-size: 2em; }
+    .arch-extensions { grid-template-columns: repeat(2, 1fr); }
+    .cards { grid-template-columns: 1fr; }
+    .principles { grid-template-columns: 1fr; }
+    .arch { padding: 1.5em; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<div class="hero">
+  <h1>Raven <span>Echo</span></h1>
+  <p class="subtitle">
+    Architecture, patterns, and solutions from building a personal AI assistant
+    by extending Claude Code — not replacing it.
+  </p>
+
+  <!-- Architecture diagram -->
+  <div class="arch">
+    <div class="arch-title">Architecture</div>
+    <div class="arch-core">
+      <div class="name">Claude Code</div>
+      <div class="desc">the engine — models, tools, context management</div>
+    </div>
+    <div class="arch-connector">│ extends via native hooks │</div>
+    <div class="arch-extensions">
+      <div class="arch-ext skills">
+        <div class="name">Skills</div>
+        <div class="desc">Markdown workflows + CLI tools</div>
+      </div>
+      <div class="arch-ext hooks">
+        <div class="name">Hooks</div>
+        <div class="desc">Lifecycle events, permission gating</div>
+      </div>
+      <div class="arch-ext webui">
+        <div class="name">Web UI</div>
+        <div class="desc">Panel-based workspace</div>
+      </div>
+      <div class="arch-ext tasks">
+        <div class="name">Tasks</div>
+        <div class="desc">Cross-project management</div>
+      </div>
+      <div class="arch-ext memory">
+        <div class="name">Memory</div>
+        <div class="desc">Persistent context</div>
+      </div>
+      <div class="arch-ext sandbox">
+        <div class="name">Sandbox</div>
+        <div class="desc">Autonomous agent boundaries</div>
+      </div>
+    </div>
+    <div class="arch-motto">Every CC improvement comes for free</div>
+  </div>
+
+  <div class="strategy">
+    <p>
+      Instead of building a competing agent framework, Raven extends Claude Code
+      through its native extension points — skills, hooks, and context files.
+      The result is a personal assistant that improves automatically as the underlying
+      agent improves.
+    </p>
+  </div>
+</div>
+
+<!-- Patterns -->
+<div class="section">
+  <div class="section-header">
+    <h2>Patterns</h2>
+    <p>Reusable approaches that generalize beyond this project</p>
+  </div>
+  <div class="cards">
+    <a class="card" href="patterns/skill-system.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Skill System</div>
+      <div class="card-desc">Extending an AI agent with domain-specific workflows via markdown files and CLI tools.</div>
+    </a>
+    <a class="card" href="patterns/hook-system.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Hook System</div>
+      <div class="card-desc">Agent lifecycle events as extension points — notification, detection, and permission enforcement.</div>
+    </a>
+    <a class="card" href="patterns/panel-system.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Panel System</div>
+      <div class="card-desc">A minimal web UI as a window manager — panels register, activate, and communicate through a message bus.</div>
+    </a>
+    <a class="card" href="patterns/cli-as-api.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">CLI-as-API</div>
+      <div class="card-desc">Python parses, Node.js serves. One CLI tool with --json, two interfaces for free.</div>
+    </a>
+    <a class="card" href="patterns/session-continuity.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Session Continuity</div>
+      <div class="card-desc">Label-based state stashing across agent sessions — reflect, save, resume.</div>
+    </a>
+    <a class="card" href="patterns/spec-driven-sandbox.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Spec-Driven Sandbox</div>
+      <div class="card-desc">Permission boundaries for autonomous agents — if you can run it, you can't write it.</div>
+    </a>
+    <a class="card" href="patterns/echo-generation.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Echo Generation</div>
+      <div class="card-desc">Auto-generating shareable knowledge from a private repo. This repo is itself an echo.</div>
+    </a>
+  </div>
+</div>
+
+<!-- Solutions -->
+<div class="section">
+  <div class="section-header">
+    <h2>Solutions</h2>
+    <p>Edge cases and platform quirks that took real debugging time</p>
+  </div>
+  <div class="cards">
+    <a class="card" href="solutions/pty-line-endings.md">
+      <span class="card-tag tag-solution">Solution</span>
+      <div class="card-title">PTY Line Endings</div>
+      <div class="card-desc">Why sending \r\n to a terminal on Windows produces a continuation prompt instead of executing.</div>
+    </a>
+    <a class="card" href="solutions/venv-node-integration.md">
+      <span class="card-tag tag-solution">Solution</span>
+      <div class="card-title">Venv + Node.js</div>
+      <div class="card-desc">Python venv resolution when Node.js spawns subprocess — it doesn't inherit the shell's PATH.</div>
+    </a>
+    <a class="card" href="solutions/claude-detection.md">
+      <span class="card-tag tag-solution">Solution</span>
+      <div class="card-title">Agent Detection</div>
+      <div class="card-desc">Detecting when an AI agent is running in a terminal — hooks for accuracy, PTY scanning for resilience.</div>
+    </a>
+    <a class="card" href="solutions/process-lifecycle.md">
+      <span class="card-tag tag-solution">Solution</span>
+      <div class="card-title">Process Lifecycle</div>
+      <div class="card-desc">npm start orphans child processes when killed. Run node directly.</div>
+    </a>
+    <a class="card" href="solutions/dropbox-file-locking.md">
+      <span class="card-tag tag-solution">Solution</span>
+      <div class="card-title">Cloud Sync Locking</div>
+      <div class="card-desc">Build tools fail when Dropbox locks files mid-write. Stop sync, build, restart.</div>
+    </a>
+    <a class="card" href="solutions/windows-shell-quirks.md">
+      <span class="card-tag tag-solution">Solution</span>
+      <div class="card-title">Windows Shell Quirks</div>
+      <div class="card-desc">Encoding, paths, null redirection, and other surprises when building agent tools on Windows.</div>
+    </a>
+  </div>
+</div>
+
+<!-- Principles -->
+<div class="section">
+  <div class="section-header">
+    <h2>Principles</h2>
+    <p>Rules that exist because something went wrong without them</p>
+  </div>
+  <div class="principles">
+    <div class="principle">
+      <div class="rule">Understand before you fix</div>
+      <div class="why">A workaround that bypasses a misunderstood problem creates two problems.</div>
+    </div>
+    <div class="principle">
+      <div class="rule">Surface errors, don't swallow them</div>
+      <div class="why">An error you hide is an error you'll hit again later in a worse context.</div>
+    </div>
+    <div class="principle">
+      <div class="rule">Prefer simplicity</div>
+      <div class="why">Premature optimization and premature generalization are the root of all evil.</div>
+    </div>
+    <div class="principle">
+      <div class="rule">Push back, don't placate</div>
+      <div class="why">Agreeing eagerly is not being helpful.</div>
+    </div>
+    <div class="principle">
+      <div class="rule">Don't be defensive</div>
+      <div class="why">The goal is to do the right thing, not to justify what's already been done.</div>
+    </div>
+    <div class="principle">
+      <div class="rule">Synthesize, don't summarize</div>
+      <div class="why">Focus on novel connections and coherence over exhaustive coverage.</div>
+    </div>
+  </div>
+</div>
+
+<!-- About -->
+<div class="about">
+  <h2>About This Repo</h2>
+  <p>
+    This repository is itself an echo — auto-generated from a private project by an AI skill
+    that reads the live codebase and writes fresh descriptions. The markdown files are the real
+    content, readable by both humans and AI agents. This page is a visual companion.
+  </p>
+  <p>
+    <a href="patterns/echo-generation.md">How the echo is generated</a> ·
+    <a href="architecture.md">Full architecture</a> ·
+    <a href="README.md">README</a>
+  </p>
+</div>
+
+</body>
+</html>

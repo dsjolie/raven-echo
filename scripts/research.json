@@ -1,0 +1,10 @@
+{
+  "name": "research",
+  "bash_allowlist": ["git status", "git diff", "git log"],
+  "web_enabled": true,
+  "read_only": true,
+  "write_paths": ["docs/research/"],
+  "protected_patterns": [
+    ".claude/hooks/*", ".claude/settings*", ".raven-work/*"
+  ]
+}

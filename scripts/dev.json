@@ -1,0 +1,16 @@
+{
+  "name": "dev",
+  "bash_allowlist": ["git status", "git diff", "git add", "git commit", "git log"],
+  "web_enabled": false,
+  "read_only": false,
+  "write_paths": [],
+  "protected_patterns": [
+    "package.json", "package-lock.json",
+    "*.sh", "*.bat", "*.ps1",
+    "Makefile", "Justfile", "Taskfile.yml",
+    "pyproject.toml", "setup.py", "setup.cfg",
+    ".eslintrc*", "biome.json", ".prettierrc*", ".ruff.toml", "ruff.toml",
+    ".github/workflows/*",
+    ".claude/hooks/*", ".claude/settings*", ".raven-work/*"
+  ]
+}

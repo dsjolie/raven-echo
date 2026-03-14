@@ -1,0 +1,10 @@
+{
+  "name": "review",
+  "bash_allowlist": ["git diff", "git log"],
+  "web_enabled": false,
+  "read_only": true,
+  "write_paths": ["docs/review/"],
+  "protected_patterns": [
+    ".claude/hooks/*", ".claude/settings*", ".raven-work/*"
+  ]
+}

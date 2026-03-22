@@ -1,12 +1,18 @@
-# CLI-as-API: Python Parses, Node.js Serves
+# CLI-as-API: CLI Tools as the Interface Between Components
 
 ## Problem
 
-You have a web UI in Node.js and complex parsing logic (task files with deadlines, project resolution, markdown conventions). Writing the parser in JavaScript means maintaining it in two places — the terminal CLI and the web server. Writing it only in Python means the web UI can't use it.
+You have a web UI in Node.js and complex parsing logic (task files with deadlines, project resolution, markdown conventions). Writing the parser in JavaScript means maintaining it in two places — the terminal CLI and the web server. Writing it only in Python means the web UI can't use it. And you want shell scripts, cron jobs, and agent hooks to access the same functionality.
 
 ## Approach
 
-Put all parsing logic in a Python CLI tool. Give it a `--json` flag for structured output. The Node.js server calls it via `execFile` and parses the JSON response. The CLI works standalone from the terminal, and the web UI gets the same logic for free.
+Put all parsing logic in a CLI tool. Give it a `--json` flag for structured output. The Node.js server calls it via `execFile` and parses the JSON response. Shell scripts wrap HTTP APIs with curl. Every component speaks through CLIs — the same tool works from a terminal, from the web UI, from a cron job, and from a hook.
+
+Two variants of this pattern appear in the project:
+
+### Python CLI → Node.js server
+
+The task management tool (`rtasks.py`) handles all parsing. The Node.js wrapper is ~100 lines of one-line functions:
 
 ```
 Terminal user                    Web UI
@@ -20,8 +26,6 @@ Terminal user                    Web UI
      ▼
   Parsed task data (JSON)
 ```
-
-The Node.js wrapper is minimal — ~100 lines total, mostly one-line functions:
 
 ```javascript
 function rtasks(...args) {
@@ -40,6 +44,23 @@ function rtasks(...args) {
 function addTask(project, text) { return rtasks('add', project, text); }
 function completeTask(project, text) { return rtasks('done', project, text); }
 ```
+
+### Bash CLI → HTTP API
+
+A Bash script (`raven-ui`) wraps the web UI's HTTP endpoints with curl:
+
+```bash
+# Send a notification
+raven-ui modal "Build Complete" "All tests passed."
+
+# Create a terminal
+raven-ui terminal "Worker" --project myproject --claude
+
+# Query sessions
+raven-ui sessions --named --limit 10
+```
+
+This makes the web UI's capabilities available from any context — hooks, cron jobs, other agent sessions — without needing to construct curl calls manually.
 
 ## Implementation
 
@@ -67,4 +88,6 @@ This resolution is necessary because `execFile('python', ...)` always uses the s
 
 - **Error messages are useful.** When `execFile` fails, include both the error message and stderr in the rejection. Python tracebacks in stderr are the fastest way to diagnose issues.
 
-- **One process per request.** Each web UI action spawns a Python subprocess. This is fine at personal-tool scale (single user, infrequent requests). For higher throughput, you'd want a long-running Python process with IPC — but that's premature optimization for a personal tool.
+- **One process per request.** Each web UI action spawns a subprocess. This is fine at personal-tool scale (single user, infrequent requests). For higher throughput, you'd want a long-running process with IPC — but that's premature optimization for a personal tool.
+
+- **Bash quoting for markdown.** When the CLI passes markdown content (with backticks, asterisks, dollar signs) through curl, shell quoting gets tricky. The Bash wrapper handles this with careful argument passing, but calling the HTTP API directly needs attention.

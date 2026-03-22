@@ -29,6 +29,9 @@ Reusable approaches that generalize beyond this specific project.
 - [patterns/session-continuity.md](patterns/session-continuity.md) — Persisting working state across agent sessions with label-based stashing
 - [patterns/spec-driven-sandbox.md](patterns/spec-driven-sandbox.md) — Sandboxing autonomous agents with hook-enforced permission boundaries
 - [patterns/echo-generation.md](patterns/echo-generation.md) — Auto-generating shareable knowledge extracts from a private repo
+- [patterns/guard-system.md](patterns/guard-system.md) — Mode-based tool call guardrails via PreToolUse hooks
+- [patterns/notification-system.md](patterns/notification-system.md) — Agent-to-browser communication with persistent modals and ephemeral toasts
+- [patterns/scheduler.md](patterns/scheduler.md) — Server-side cron with prompt injection into agent terminals
 
 ### Solutions
 
@@ -40,12 +43,13 @@ Specific edge-case fixes and workarounds — problems that took real debugging t
 - [solutions/process-lifecycle.md](solutions/process-lifecycle.md) — Orphaned child processes when stopping npm
 - [solutions/dropbox-file-locking.md](solutions/dropbox-file-locking.md) — Build failures from cloud sync file locks
 - [solutions/windows-shell-quirks.md](solutions/windows-shell-quirks.md) — Encoding, paths, and shell compatibility on Windows
+- [solutions/xterm-upgrade.md](solutions/xterm-upgrade.md) — Migrating from xterm.js 5.x to 6.x without breaking scrolling
 
 ### Scripts
 
 Self-contained, reusable scripts copied verbatim from the project.
 
-- [scripts/](scripts/) — Sandbox hook, notification hook, permission profiles
+- [scripts/](scripts/) — Guard hook, notification hook, sandbox hook, permission profiles
 
 ## How to Use This
 

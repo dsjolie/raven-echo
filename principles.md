@@ -12,13 +12,13 @@ When something doesn't work, stop and check your assumptions before reaching for
 
 Don't silently catch errors and add fallbacks. An error you hide is an error you'll hit again in a worse context. Fallbacks are for cases where the failure mode is understood and expected — not for surprises.
 
-**In practice:** When copying scripts for sharing, if a script contains hardcoded paths, the temptation is to auto-sanitize — replace the paths with variables. Instead, the system surfaces it as an error: "this script has specifics on lines 12 and 34, fix it at source." Auto-sanitizing hides the fact that the script wasn't properly parameterized.
+**In practice:** When copying scripts for sharing, if a script contains hardcoded paths, the temptation is to auto-sanitize — replace the paths with variables. Instead, the system surfaces it as an error: "this script has specifics on lines 12 and 34, fix it at source." Auto-sanitizing hides the fact that the script wasn't properly parameterized. Similarly, the guard system returns guidance messages rather than silently blocking commands — the agent sees *why* a pattern was rejected and can adjust its approach.
 
 ## Prefer Simplicity
 
 Write the least code that solves the actual problem. Robustness over cleverness. Premature optimization and premature generalization are the root of all evil.
 
-**In practice:** The task overview cache is three variables and two functions — a timestamp, a cached value, and a TTL. Not a cache class, not a generic memoizer, not an LRU. It serves one purpose, it's obvious at a glance, and it's never needed to be more than that.
+**In practice:** The task overview cache is three variables and two functions — a timestamp, a cached value, and a TTL. Not a cache class, not a generic memoizer, not an LRU. The guard system's mode state is a single text file containing one word (`default`, `away`, or `off`) — read fresh on every hook invocation. No database, no IPC, no daemon. The simplest thing that works is usually the right thing.
 
 ## Push Back, Don't Placate
 

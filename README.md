@@ -17,6 +17,7 @@ This repository captures the interesting parts — architecture decisions, reusa
 
 - [architecture.md](architecture.md) — System design: how the components connect and why
 - [principles.md](principles.md) — Design philosophy with concrete examples
+- [history.md](history.md) — Project timeline: origins, pivots, growth, and current state
 
 ### Patterns
 

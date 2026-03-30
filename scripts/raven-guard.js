@@ -21,6 +21,41 @@ const MODE_FILE = path.join(
   'raven-guard'
 );
 
+// Raven root — for scanning task files
+const RAVEN_ROOT = path.resolve(__dirname, '..', '..');
+const URL_RE = /https?:\/\/[^\s)>\]"']+/g;
+
+/** Extract all URLs from task files (tasks.md + tasks/*.md). Cached per invocation. */
+let _taskUrls = null;
+function getTaskUrls() {
+  if (_taskUrls) return _taskUrls;
+  _taskUrls = new Set();
+  try {
+    // Main tasks.md
+    const main = path.join(RAVEN_ROOT, 'tasks.md');
+    if (fs.existsSync(main)) {
+      for (const m of fs.readFileSync(main, 'utf8').matchAll(URL_RE)) _taskUrls.add(m[0]);
+    }
+    // tasks/*.md
+    const tasksDir = path.join(RAVEN_ROOT, 'tasks');
+    if (fs.existsSync(tasksDir)) {
+      for (const f of fs.readdirSync(tasksDir)) {
+        if (!f.endsWith('.md')) continue;
+        for (const m of fs.readFileSync(path.join(tasksDir, f), 'utf8').matchAll(URL_RE)) _taskUrls.add(m[0]);
+      }
+    }
+  } catch { /* ignore read errors */ }
+  return _taskUrls;
+}
+
+/** Check if a URL exactly matches one in the task files. */
+function isTaskUrl(url) {
+  if (!url) return false;
+  const urls = getTaskUrls();
+  // Exact match or match after stripping trailing slash
+  return urls.has(url) || urls.has(url.replace(/\/+$/, ''));
+}
+
 // Read mode (default if file missing)
 let mode = 'default';
 try {
@@ -92,13 +127,25 @@ process.stdin.on('end', () => {
   // --- Bash whitelist for away mode ---
   if (toolName === 'Bash' && typeof toolInput.command === 'string') {
     const cmd = toolInput.command;
+    // Safe git subcommands (no destructive ops like reset --hard, push --force, checkout .)
+    const gitSafe =
+      /^\s*git\s+(add|commit|push|pull|status|log|diff|branch|fetch)\b/.test(cmd) &&
+      !/--force\b/.test(cmd) &&
+      !/--hard\b/.test(cmd) &&
+      !/\bcheckout\s+\./.test(cmd) &&
+      !/\brestore\s+\./.test(cmd) &&
+      !/\breset\b/.test(cmd) &&
+      !/\bclean\b/.test(cmd) &&
+      !/-D\b/.test(cmd);
+
     const safe =
       cmd.includes('raven-guard.sh') ||                        // toggle guard mode
       /\brtasks\b/.test(cmd) ||                                // raven-tasks CLI
       /skills\/raven-[^/]+\/scripts\//.test(cmd) ||            // any raven skill script
       /scripts\/raven-ui\b/.test(cmd) ||                       // raven-ui CLI
       /\bcurl\b.*\blocalhost\b/.test(cmd) ||                   // web UI API (localhost only)
-      /\bcurl\b.*\b127\.0\.0\.1\b/.test(cmd);                 // web UI API (loopback)
+      /\bcurl\b.*\b127\.0\.0\.1\b/.test(cmd) ||                // web UI API (loopback)
+      gitSafe;                                                  // safe git operations
 
     if (safe) {
       // Block compound commands in away — they trigger permission prompts unattended
@@ -110,6 +157,29 @@ process.stdin.on('end', () => {
       }
       process.exit(0);
     }
+
+    // Rodney (headless Chrome) — lifecycle commands always allowed, URLs must match tasks
+    if (/\brodney\b/.test(cmd)) {
+      // start/stop/screenshot/html/ax-tree — no URL needed, safe lifecycle/read ops
+      if (/\brodney\s+(start|stop|screenshot|html|ax-tree)\b/.test(cmd)) {
+        process.exit(0);
+      }
+      // open/js/text/click — allow if any URL in the command matches a task URL
+      const urlMatch = cmd.match(URL_RE);
+      const url = urlMatch ? urlMatch[0] : null;
+      if (url && isTaskUrl(url)) {
+        process.exit(0);
+      }
+      // No-URL rodney commands that aren't lifecycle (e.g. rodney js "...") — allow
+      // These operate on whatever page is already open (loaded via a task URL)
+      if (!url && /\brodney\s+(js|text|click)\b/.test(cmd)) {
+        process.exit(0);
+      }
+      block(
+        'AWAY: Rodney URLs must match a task URL. ' +
+        'The URL in this command does not match any task URL.'
+      );
+    }
   }
 
   // Block MCP tools
@@ -119,6 +189,11 @@ process.stdin.on('end', () => {
       'Use built-in tools (Read, Write, Edit, Grep, Glob) instead. ' +
       'If no alternative exists, wait for the user to return.'
     );
+  }
+
+  // WebFetch — allow if URL matches a task URL exactly
+  if (toolName === 'WebFetch' && toolInput.url && isTaskUrl(toolInput.url)) {
+    process.exit(0);
   }
 
   // Block permission-requiring tools

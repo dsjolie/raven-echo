@@ -60,14 +60,27 @@ The server-side scheduler (node-cron with a JSON config file) connected cron exp
 
 The web UI got a sidebar button and API endpoint for toggling guard modes, and a speed dial submenu for quick access.
 
-## Current State (Mar 22, 2026)
+## The Overnight Pipeline (Mar 22–30)
 
-Seven weeks from first commit. The system has:
+The guard's away mode plus the scheduler enabled a qualitative shift: unattended overnight automation. The initial pipeline ran auto-tasks locally at 03:05, but local-only operation couldn't do web research.
+
+The solution was a local-cloud split. A cloud-hosted Claude Code session (via Anthropic's RemoteTrigger API, running Sonnet on a 03:00 UTC cron) handles tasks needing web access. The local agent brackets the cloud run: a night-push at 02:30 commits safe work and pre-fetches JavaScript-rendered URLs (via headless Chrome), a night-pull at 05:00 retrieves cloud results.
+
+The git repository became a coordination bus between agents. The cloud agent reads task files, writes reports to `incoming/`, and pushes. The local agent pulls and summarizes. No direct agent-to-agent communication — just files in a repo.
+
+The cloud agent's undocumented execution time limit prompted an incremental commit pattern: commit and push after each completed task rather than batching at the end. When a large research task timed out, a continuation pattern emerged: merge partial results into main, push, create a new one-shot trigger with "continue from where you left off" instructions. This delivered a complete 7-theme literature review across 3 sequential cloud agent runs.
+
+Cross-platform support also landed in this period: the sync-skills script gained macOS symlink support (previously Windows junctions only), and the activate-venv script handles both platforms.
+
+## Current State (Mar 30, 2026)
+
+Eight weeks from first commit. The system has:
 
 - **15 skills** covering status, reflection, continuity, task management, verification, security auditing, sandboxed work, paper reading, memory consolidation, knowledge sharing, tool guardrails, and skill development
 - **A panel-based web UI** with terminal, tasks, overview, sessions, status, memory, settings, read, and about panels — accessible from desktop and mobile
 - **A notification and scheduling system** for proactive agent behavior
-- **A research paper** on agent memory architecture, under revision for publication
+- **An overnight local-cloud pipeline** for unattended research, memory maintenance, and security auditing
+- **A research paper** on agent memory architecture, under revision for publication — plus a new assessment/examination paper spawned from overnight cloud research
 - **An echo system** (this repo) for sharing knowledge from a private codebase
 
-Active work fronts include memory architecture implementation (recognition hook design converged, implementation next), the short paper's CS-index reframing, and continued evolution of the web UI and skill system.
+Active work fronts include memory architecture implementation (recognition hook design converged, implementation next), the assessment paper (courses-as-courses), and continued overnight pipeline refinement.

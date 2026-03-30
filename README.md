@@ -33,6 +33,7 @@ Reusable approaches that generalize beyond this specific project.
 - [patterns/guard-system.md](patterns/guard-system.md) — Mode-based tool call guardrails via PreToolUse hooks
 - [patterns/notification-system.md](patterns/notification-system.md) — Agent-to-browser communication with persistent modals and ephemeral toasts
 - [patterns/scheduler.md](patterns/scheduler.md) — Server-side cron with prompt injection into agent terminals
+- [patterns/overnight-pipeline.md](patterns/overnight-pipeline.md) — Local-cloud split for unattended research with git as coordination bus
 
 ### Solutions
 

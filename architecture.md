@@ -80,13 +80,13 @@ Agents can push notifications to the browser through an HTTP API (`/api/ui`). Tw
 
 Both support markdown rendering. Pending (undismissed) modals are sent to new WebSocket clients on connect, so nothing gets lost if the browser reconnects. A CLI tool (`raven-ui modal/toast`) makes this callable from hooks, cron jobs, or other agents.
 
-## Scheduler
+## Scheduler and Overnight Pipeline
 
-The server runs a cron scheduler (node-cron) that injects prompts into named terminals. Jobs are defined in `data/jobs.json` — a data file, not code — specifying a cron expression, a target terminal (matched by name prefix), and a prompt string.
+The server runs a cron scheduler (node-cron) that injects prompts into named terminals. Jobs are defined in `data/jobs.json` — a data file, not code — specifying a cron expression, a target terminal (matched by name prefix), and a prompt string. Complex instructions are externalized to markdown prompt files for readability.
 
-When a job fires, the scheduler finds the target terminal, checks that Claude is running in it, and writes the prompt directly to the PTY. This drives automated workflows: daily memory consolidation, morning briefings composed from task data and sent as modals.
+When a job fires, the scheduler finds the target terminal and writes the prompt directly to the PTY. The jobs file is watched with `fs.watch` — editing it takes effect immediately without a server restart.
 
-The jobs file is watched with `fs.watch` — editing it takes effect immediately without a server restart.
+The scheduler anchors an overnight pipeline that splits work between a local agent and a cloud agent. The local agent (constrained to safe operations by the guard) handles pre-fetching, committing, and pulling. A cloud-hosted Claude Code session (triggered via Anthropic's RemoteTrigger API on a cron schedule) handles tasks requiring web access — reading URLs, searching for papers, conducting research. The git repository serves as the coordination bus: local pushes work, cloud processes and pushes results, local pulls results. This gives the system full web research capability overnight without relaxing the local agent's permission constraints.
 
 ## Skills as the Extension Mechanism
 

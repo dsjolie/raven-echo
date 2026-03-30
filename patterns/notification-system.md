@@ -17,19 +17,24 @@ Both support markdown rendering in the browser. A CLI wrapper script makes the e
 
 ### Server side
 
-Notifications are stored in a JSON file. Modals are persisted on creation and removed on dismissal. Toasts are broadcast only — never stored.
+The API endpoint splits modals and toasts at the entry point. Modals go through storage (persisted to a JSON file, added to the in-memory array, broadcast). Toasts bypass storage entirely — they're assigned an ID and broadcast, nothing else.
 
 ```javascript
-function addNotification(notif) {
-  notif.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  notif.createdAt = new Date().toISOString();
-  _notifications.push(notif);
-  if (notif.action === 'modal') saveNotifications();  // persist modals only
-  return notif;
+// Modal: store + broadcast
+if (msg.action === 'modal') {
+  const notif = addNotification(msg);  // persists to disk
+  broadcast({ type: 'ui-notify', ...notif });
+}
+// Toast: broadcast only
+else if (msg.action === 'toast') {
+  msg.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  broadcast({ type: 'ui-notify', ...msg });
 }
 ```
 
 On WebSocket connect, the server sends all pending (undismissed) modals to the new client. This ensures nothing gets lost if the browser reconnects or if the notification arrived while no browser was open.
+
+**Design lesson:** An earlier implementation routed both modals and toasts through the same `addNotification()` function, with a guard inside that only persisted modals. This caused a recurring bug: toasts ended up in storage (via Dropbox sync conflicts restoring an older file, or edge cases in the guard logic) and re-appeared on every page reload. The fix was to separate the paths at the entry point — toasts never touch storage, so there's no guard to fail. Three defensive filters at downstream points (load, write, send) were symptoms of not fixing the root cause.
 
 ### Client side
 

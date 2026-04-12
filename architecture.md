@@ -86,7 +86,23 @@ The server runs a cron scheduler (node-cron) that injects prompts into named ter
 
 When a job fires, the scheduler finds the target terminal and writes the prompt directly to the PTY. The jobs file is watched with `fs.watch` — editing it takes effect immediately without a server restart.
 
-The scheduler anchors an overnight pipeline that splits work between a local agent and a cloud agent. The local agent (constrained to safe operations by the guard) handles pre-fetching, committing, and pulling. A cloud-hosted Claude Code session (triggered via Anthropic's RemoteTrigger API on a cron schedule) handles tasks requiring web access — reading URLs, searching for papers, conducting research. The git repository serves as the coordination bus: local pushes work, cloud processes and pushes results, local pulls results. This gives the system full web research capability overnight without relaxing the local agent's permission constraints.
+The scheduler anchors an overnight pipeline that splits work between a local agent and a cloud agent. The local agent (constrained to safe operations by the guard) handles pre-fetching, committing, memory consolidation, and reviewing cloud results. A cloud-hosted Claude Code session (scheduled hourly via Anthropic's web UI) handles tasks requiring web access — one task per run, committed incrementally to a shared branch.
+
+The cloud agent follows a strict decision tree each run: execute a task, review a completed plan, decompose a heavy task, or exit. Heavy tasks are broken into plan files with narrow sub-tasks that span multiple runs. A nightly local job (night-pull) reviews the shared branch and merges to main — acting as a quality gate. Lock files coordinate between runs, with stale locks auto-retried rather than blocking permanently.
+
+## Knowledge Base
+
+A wiki-style knowledge store lives in `knowledge/` with an index, topic articles, and daily narrative entries. Topic articles use wikilinks (`[[topic-name]]`) for cross-referencing; backlinks are computed on request by scanning the file set.
+
+A nightly consolidation skill acts as librarian — gathering inputs from cloud agent reports, research documents, and the day's activity, then updating topic articles in place and writing a reflective daily narrative. Topics are living documents, not append-only logs. Git provides version history.
+
+The web UI provides a wiki panel with sidebar navigation, search, wikilink-based browsing, and backlink display.
+
+## Service Registry
+
+Projects can register web services (dev servers, documentation previews, tool UIs) by adding a `server` field to their `projects.json` entry. The web UI auto-discovers registered services, pings each for liveness (HTTP HEAD, 500ms timeout), and displays them in the dashboard with green/gray status dots.
+
+Client-side host rewriting makes services accessible from any machine on the network: `localhost:5000` is automatically rewritten to use the current browser's hostname when accessed remotely. No proxy, no DNS — just URL rewriting in the browser.
 
 ## Skills as the Extension Mechanism
 

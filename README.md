@@ -43,7 +43,10 @@ Reusable approaches that generalize beyond this specific project.
 - [patterns/guard-system.md](patterns/guard-system.md) — Mode-based tool call guardrails via PreToolUse hooks
 - [patterns/notification-system.md](patterns/notification-system.md) — Agent-to-browser communication with persistent modals and ephemeral toasts
 - [patterns/scheduler.md](patterns/scheduler.md) — Server-side cron with prompt injection into agent terminals
-- [patterns/overnight-pipeline.md](patterns/overnight-pipeline.md) — Local-cloud split for unattended research with git as coordination bus
+- [patterns/overnight-pipeline.md](patterns/overnight-pipeline.md) — Local-cloud split for unattended research — hourly cloud runs, plan decomposition, review gates
+- [patterns/task-system.md](patterns/task-system.md) — Cross-project task management with markdown files, urgency grouping, and autonomous task tagging
+- [patterns/knowledge-base.md](patterns/knowledge-base.md) — Wiki-style knowledge store with wikilinks, nightly consolidation, and narrative-knowledge loop
+- [patterns/service-registry.md](patterns/service-registry.md) — Declarative service registration with liveness pinging and host rewriting for remote access
 
 ### Solutions
 

@@ -11,6 +11,16 @@ This repository captures the interesting parts — architecture decisions, reusa
 
 **[Visual overview](https://dsjolie.github.io/raven-echo/overview.html)** — a designed one-page overview with architecture diagram and navigation.
 
+## Screenshots
+
+![Visual explainer](screenshots/visual-explainer.jpg)
+*Auto-generated architecture documentation viewed in the reader panel*
+
+| | | |
+|---|---|---|
+| ![Dashboard](screenshots/dashboard-full.jpg) | ![Terminal](screenshots/terminal.jpg) | ![Memory](screenshots/memory.jpg) |
+| Central dashboard | Web terminal building a UE project | Memory monitoring |
+
 ## Contents
 
 ### Architecture & Philosophy

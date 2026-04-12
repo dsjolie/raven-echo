@@ -296,6 +296,84 @@
 
   .about a:hover { text-decoration: underline; }
 
+  /* --- Gallery --- */
+  .gallery {
+    max-width: 980px;
+    margin: 0 auto;
+  }
+
+  .gallery-featured {
+    display: block;
+    margin-bottom: 1.2em;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.07);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.2s;
+  }
+
+  .gallery-featured:hover { border-color: rgba(96, 165, 250, 0.3); }
+  .gallery-featured img { width: 100%; display: block; }
+
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1em;
+  }
+
+  .gallery-item {
+    display: block;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.07);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.2s;
+  }
+
+  .gallery-item:hover { border-color: rgba(96, 165, 250, 0.3); }
+  .gallery-item img { width: 100%; display: block; }
+
+  .gallery-caption {
+    font-size: 0.78em;
+    color: #64748b;
+    padding: 0.6em 1em;
+    background: rgba(255,255,255,0.02);
+  }
+
+  /* --- Lightbox --- */
+  .lightbox {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.92);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 2em;
+  }
+
+  .lightbox:target { display: flex; }
+
+  .lightbox img {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 8px;
+    box-shadow: 0 4px 40px rgba(0,0,0,0.5);
+  }
+
+  .lightbox-close {
+    position: absolute;
+    top: 1em; right: 1.5em;
+    color: #8b95a5;
+    font-size: 2em;
+    text-decoration: none;
+    line-height: 1;
+  }
+
+  .lightbox-close:hover { color: #e2e8f0; }
+
   /* --- Responsive --- */
   @media (max-width: 600px) {
     .hero h1 { font-size: 2em; }
@@ -303,6 +381,7 @@
     .cards { grid-template-columns: 1fr; }
     .principles { grid-template-columns: 1fr; }
     .arch { padding: 1.5em; }
+    .gallery-grid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -361,6 +440,46 @@
       The result is a personal assistant that improves automatically as the underlying
       agent improves.
     </p>
+  </div>
+</div>
+
+<!-- Screenshots -->
+<div class="section">
+  <div class="section-header">
+    <h2>Screenshots</h2>
+    <p>The web UI — a panel-based workspace for managing multiple Claude Code sessions</p>
+  </div>
+  <div class="gallery">
+    <a href="#lb-dashboard" class="gallery-featured">
+      <img src="screenshots/dashboard-full.jpg" alt="Raven dashboard" loading="lazy">
+      <div class="gallery-caption">Central dashboard — terminals, sessions, tasks, services, and uptime at a glance</div>
+    </a>
+    <a href="#lb-explainer" class="gallery-featured">
+      <img src="screenshots/visual-explainer.jpg" alt="Visual explainer document" loading="lazy">
+      <div class="gallery-caption">A visual explainer document viewed in the reader panel — auto-generated architecture documentation</div>
+    </a>
+    <div class="gallery-grid">
+      <a href="#lb-hero" class="gallery-item">
+        <img src="screenshots/hero.jpg" alt="Raven splash screen" loading="lazy">
+        <div class="gallery-caption">Splash screen</div>
+      </a>
+      <a href="#lb-terminal" class="gallery-item">
+        <img src="screenshots/terminal.jpg" alt="Web terminal" loading="lazy">
+        <div class="gallery-caption">Building an Unreal Engine project</div>
+      </a>
+      <a href="#lb-tasks" class="gallery-item">
+        <img src="screenshots/tasks-overview.jpg" alt="Task overview" loading="lazy">
+        <div class="gallery-caption">Task overview — note the sandboxed "CC! Bash" permission indicator in the tab</div>
+      </a>
+      <a href="#lb-wiki" class="gallery-item">
+        <img src="screenshots/wiki.jpg" alt="Knowledge base wiki" loading="lazy">
+        <div class="gallery-caption">Knowledge base wiki with topic index</div>
+      </a>
+      <a href="#lb-memory" class="gallery-item">
+        <img src="screenshots/memory.jpg" alt="Memory monitor" loading="lazy">
+        <div class="gallery-caption">System and per-terminal memory monitoring</div>
+      </a>
+    </div>
   </div>
 </div>
 
@@ -524,6 +643,15 @@
     <a href="viewer.html?file=README.md">README</a>
   </p>
 </div>
+
+<!-- Lightboxes -->
+<div id="lb-explainer" class="lightbox"><a href="#_" class="lightbox-close">&times;</a><img src="screenshots/visual-explainer.jpg" alt="Visual explainer"></div>
+<div id="lb-dashboard" class="lightbox"><a href="#_" class="lightbox-close">&times;</a><img src="screenshots/dashboard-full.jpg" alt="Dashboard"></div>
+<div id="lb-hero" class="lightbox"><a href="#_" class="lightbox-close">&times;</a><img src="screenshots/hero.jpg" alt="Splash"></div>
+<div id="lb-terminal" class="lightbox"><a href="#_" class="lightbox-close">&times;</a><img src="screenshots/terminal.jpg" alt="Terminal"></div>
+<div id="lb-tasks" class="lightbox"><a href="#_" class="lightbox-close">&times;</a><img src="screenshots/tasks-overview.jpg" alt="Task overview"></div>
+<div id="lb-wiki" class="lightbox"><a href="#_" class="lightbox-close">&times;</a><img src="screenshots/wiki.jpg" alt="Wiki"></div>
+<div id="lb-memory" class="lightbox"><a href="#_" class="lightbox-close">&times;</a><img src="screenshots/memory.jpg" alt="Memory"></div>
 
 </body>
 </html>

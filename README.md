@@ -13,13 +13,15 @@ This repository captures the interesting parts — architecture decisions, reusa
 
 ## Screenshots
 
-![Visual explainer](screenshots/visual-explainer.jpg)
-*Auto-generated architecture documentation viewed in the reader panel*
+![Dashboard](screenshots/dashboard-full.jpg)
+*Central dashboard — terminals, sessions, tasks, services, and uptime at a glance*
 
 | | | |
 |---|---|---|
-| ![Dashboard](screenshots/dashboard-full.jpg) | ![Terminal](screenshots/terminal.jpg) | ![Memory](screenshots/memory.jpg) |
-| Central dashboard | Web terminal building a UE project | Memory monitoring |
+| ![Visual explainer](screenshots/visual-explainer.jpg) | ![Wiki](screenshots/wiki.jpg) | ![Tasks](screenshots/tasks-overview.jpg) |
+| Auto-generated architecture docs | Knowledge base wiki | Task overview with permission indicator |
+| ![Hero](screenshots/hero.jpg) | ![Terminal](screenshots/terminal.jpg) | ![Memory](screenshots/memory.jpg) |
+| Splash screen | Web terminal building a UE project | Memory monitoring |
 
 ## Contents
 

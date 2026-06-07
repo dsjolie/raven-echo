@@ -1,98 +1,87 @@
-# Spec-Driven Sandbox: Permission Boundaries for Autonomous Agents
+# Spec-Driven Sandbox: Enforced Permission Boundaries for Autonomous Agents
 
 ## Problem
 
-You want to delegate a task to an autonomous AI agent — "review this codebase for tech debt" or "implement this feature" — but you don't want it to have unrestricted access. It should only touch files in an isolated working copy, run only explicitly approved commands, and never modify its own constraints.
+When you give an autonomous agent a task — implement a feature, audit a codebase, write a research summary — you face a gap between what you intend and what you can guarantee. The agent has access to every tool in its session. Instructions in a prompt say what the agent *should* do; nothing prevents it from doing more.
+
+That gap matters for two distinct reasons. First, an agent with good intentions but poor judgment can corrupt files it was never meant to touch, run commands with side effects it didn't anticipate, or pass tests by modifying the tests. Second, even a well-behaved agent can be steered by prompt injection — content in a file or web page that redirects its behavior. If the only boundary is a polite request in the system prompt, there is no real boundary.
+
+The usual responses to this are either coarse (turn off dangerous tools entirely) or incomplete (ask the human to approve every action). What's needed is a way to grant exactly the capability the task requires — no more — and enforce that grant regardless of what the agent reads or is told to do mid-task.
 
 ## Approach
 
-A three-layer permission system:
+The solution separates policy from enforcement, and puts enforcement in code the agent cannot modify.
 
-1. **Spec** — a markdown document describing the task, acceptance criteria, and constraints
-2. **Profile** — a JSON file defining the permission boundaries (what tools, commands, and paths are allowed)
-3. **Hook** — a Python script that intercepts every tool call and enforces the profile
+**Policy lives in data.** A JSON profile declares the permission set for a task category: which commands are approved, whether web access is on, which paths the agent may write to, and which files are protected against any write regardless of other permissions. A human reviews and approves the profile before the agent launches. The profile is static; it cannot change during the run.
 
-The human approves the full permission set before launch. The agent runs in an isolated worktree (a lightweight copy of the repo) and the hook prevents it from escaping.
+**Enforcement lives in a hook.** A `PreToolUse` hook — a script CC executes before every tool call — reads the active config and decides allow or deny. The hook has no interface the agent can address; it reads from `stdin` and writes a JSON decision to `stdout`. The agent sees a denied tool call, not a negotiation.
 
-### Profiles
+**Isolation lives in a worktree.** The agent runs in a git worktree: a lightweight, separate working copy of the repository on its own branch. Even without any hook, the worktree limits blast radius. With the hook enforcing path restrictions, the worktree boundary is checked on every file operation.
 
-Three built-in profiles cover common cases:
+Three built-in profiles cover the common task shapes, each trading capability for safety:
 
-| Profile | Purpose | Writes | Bash | Web |
-|---------|---------|--------|------|-----|
-| **dev** | Implementation tasks | Full worktree (except protected files) | Git + task-specific commands | No |
-| **research** | Read-only investigation | Output folder only | Git read-only | Yes |
-| **review** | Code review, audits | Output folder only | Git diff/log only | No |
+| Profile | Bash | File writes | Web |
+|---------|------|-------------|-----|
+| `dev` | git read/write + task-specific extras | Anywhere in worktree (anti-tamper excepted) | Off |
+| `research` | git read-only | Designated output folder only | On |
+| `review` | git diff/log | Designated output folder only | Off |
 
-Each profile is a JSON file:
-
-```json
-{
-  "name": "dev",
-  "bash_allowlist": ["git status", "git diff", "git add", "git commit", "git log"],
-  "web_enabled": false,
-  "read_only": false,
-  "write_paths": [],
-  "protected_patterns": [
-    "package.json", "package-lock.json",
-    "*.sh", "*.bat", "*.ps1",
-    ".eslintrc*", "biome.json",
-    ".github/workflows/*",
-    ".claude/hooks/*", ".claude/settings*", ".raven-work/*"
-  ]
-}
-```
-
-### Anti-Tamper: If You Can Run It, You Can't Write It
-
-The core security rule: files that define executable behavior are write-protected. When the agent is allowed to run `npm test`, it must not be able to edit `package.json` (which defines what `test` runs), test configuration files, or linter configs. Otherwise it could make its own work pass checks trivially.
-
-This is enforced by the `protected_patterns` list in the profile. The hook checks every Write/Edit call against these patterns and denies matching paths.
+The key structural decision is that profiles are the mechanism for adding capability, not for reducing it from a default-permissive state. The baseline is deny-everything; a profile is an explicit grant.
 
 ## Implementation
 
-The hook script receives structured JSON on stdin for every tool call:
+The hook script (`skills/raven-work/scripts/sandbox-hook.py`) handles the CC `PreToolUse` protocol directly: reads JSON from `stdin`, exits `0` with `{"permissionDecision": "allow"}` or exits `2` with `{"permissionDecision": "deny", "reason": "..."}`.
 
+Config is loaded by walking up from the agent's `cwd` until `.raven-work/config.json` is found — the same discovery pattern git uses for `.git/`. If no config is found, the hook passes through silently, which handles the case where a subagent spawned by the builder runs from a different directory.
+
+Routing by tool type:
+
+```python
+if tool_name in ("Write", "Edit"):
+    check_file_write(tool_input, config, cwd)
+elif tool_name in ("Read", "Glob", "Grep"):
+    check_file_read(tool_input, config, cwd)
+elif tool_name == "Bash":
+    check_bash(tool_input, config)
+elif tool_name in ("WebSearch", "WebFetch"):
+    check_web(config)
+elif tool_name == "Agent":
+    allow()   # subagents inherit the same hook
+else:
+    deny(f"tool not allowed: {tool_name}")
 ```
-{
-  "tool_name": "Write",
-  "tool_input": { "file_path": "/path/to/file.js", "content": "..." },
-  "cwd": "/current/directory"
-}
+
+The default-deny `else` branch matters: any tool not explicitly categorized is blocked. New tools added in a future CC version don't become silently available.
+
+**Anti-tamper: if you can run it, you can't write it.** This is the non-obvious security requirement. When a profile grants `npm test`, the agent can verify its own work by running tests — but if it can also write `package.json`, it can redefine what `npm test` runs. If it can write test files, it can make tests pass trivially. The `protected_patterns` list in each profile blocks writes to files that define or configure anything the agent can execute: build manifests, shell scripts, linter configs, CI definitions, and — critically — the sandbox config and hook files themselves.
+
+```json
+"protected_patterns": [
+  "package.json", "package-lock.json",
+  "*.sh", "*.bat", "*.ps1",
+  "Makefile", "Justfile",
+  "pyproject.toml", "setup.py",
+  ".eslintrc*", "biome.json", ".ruff.toml",
+  ".github/workflows/*",
+  ".claude/hooks/*", ".claude/settings*",
+  ".raven-work/*"
+]
 ```
 
-It loads config by walking up from `cwd` to find `.raven-work/config.json`, then routes by tool type:
+The last two entries — hook config and sandbox metadata — close the self-escape loop: the agent cannot modify the rules it is running under.
 
-- **Write/Edit** — path must be inside worktree, not matching protected patterns, and (if read-only profile) under an allowed write path
-- **Read/Glob/Grep** — path must be inside worktree
-- **Bash** — command must prefix-match an allowlist entry
-- **WebSearch/WebFetch** — only if profile enables web access
-- **Agent** — always allowed (subagents inherit the same hook)
-- **Everything else** — denied by default
+For read-only profiles (`research`, `review`), an additional check restricts all writes to a specific output folder. The agent can read anything in the worktree but can only write to, say, `docs/research/`. This models the real task shape: the agent is an analyst, not an editor.
 
-### Trust Boundaries
-
-```
-Human (full trust)
-  └─ Orchestrator session (interactive, runs the setup skill)
-       ├─ Approves permission set
-       ├─ Creates worktree + config
-       └─ Launches builder agent
-            └─ Builder (sandboxed)
-                 ├─ Constrained by PreToolUse hook
-                 ├─ Can only touch worktree files
-                 ├─ Can only run approved commands
-                 └─ Cannot modify its own constraints
-```
+Path resolution uses `Path.resolve()` to normalize symlinks and `..` components before comparing against the worktree root. All comparisons normalize to forward slashes and lowercase to handle Windows path variants.
 
 ## Gotchas
 
-- **The hook is the security boundary, not the permission mode.** The agent's built-in permission mode (e.g., `acceptEdits`) prevents the agent from asking the user for approval on every file edit. The hook is what actually enforces path restrictions. Both are needed: permission mode for UX, hook for security.
+**The hook is the real boundary; the permission mode is UX.** CC's `--permission-mode acceptEdits` suppresses the per-edit approval prompt so the agent can run unattended. It does not restrict what the agent can edit. Conversely, the hook enforces path and command restrictions but doesn't present a user-visible dialog. Both layers are needed for different reasons — confusing them leads to thinking one is redundant.
 
-- **Config walk-up.** The hook walks up from `cwd` to find its config, like git finding `.git/`. If the config isn't found, the hook passes through silently — subagents may run from a different working directory where the walk-up can't reach the worktree root.
+**Prefix matching is intentional but sharp.** Bash allowlist entries match by prefix: `git status` also permits `git status --porcelain`. This is the right trade-off for ergonomics — you don't enumerate every flag combination — but it means allowlist entries must be chosen carefully at the command boundary. `git` as an entry would permit `git push --force`.
 
-- **Prefix matching on Bash commands.** `git status` in the allowlist also permits `git status --porcelain`. This is by design (flexibility), but means allowlist entries should be chosen carefully. `rm` in the allowlist would permit `rm -rf /`.
+**Subagent cwd drift.** When the builder spawns a subagent via the `Agent` tool, the subagent may have a different `cwd`. The walk-up config discovery handles most cases, but if the subagent's starting directory is on a completely different path, the config won't be found and the hook passes through. For sensitive profiles, this is worth understanding: subagents effectively run without the sandbox if the walk-up fails.
 
-- **Static anti-tamper.** The protected patterns are defined at profile creation time, not dynamically analyzed. If `package.json` has a script that runs `jest --config custom.config.js`, the builder could modify `custom.config.js` because it's not in the protected list. Dynamic analysis of transitive executables is a known limitation.
+**Static anti-tamper has a transitive blind spot.** The protected patterns guard known config files. They don't dynamically analyze what scripts reference. If `package.json`'s `test` script runs `jest --config jest.config.js`, and `jest.config.js` is not in the protected list, the agent could modify it. The pattern is a substantial improvement over no protection, but it isn't a formal proof of tamper-resistance.
 
-- **Agent nesting.** You can't launch a headless agent (`claude -p`) from inside another agent session on all platforms. The sandbox setup creates the config and prints the launch command — the user runs it in a separate terminal.
+**You cannot launch headless agents from inside an agent session on all platforms.** The setup workflow creates the worktree, generates the config, and prints the launch command — the user runs it in a separate terminal. This is a known CC platform constraint, not a design choice. It also doubles as a natural human checkpoint: the user must explicitly start the sandboxed run.

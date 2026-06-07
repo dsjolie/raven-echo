@@ -1,68 +1,42 @@
-# Session Continuity: Label-Based State Stashing
+# Session Continuity
 
 ## Problem
 
-AI coding agents reset their context between sessions. When you resume work the next day, the agent doesn't know what you were doing, what decisions you made, or what comes next. You need a way to persist working state across sessions without coupling it to session IDs or process state.
+AI coding agents start each session with no memory of the last one. When a session ends — deliberately, by timeout, or because the context window filled — the agent loses what problem was being solved, which decisions were made, and what the next concrete step was. Re-explaining all of that at the start of every session is expensive and error-prone. Keeping a free-form running notes file helps only if the agent reliably writes it at the end and reads it at the start; left to ad-hoc discipline, it drifts stale and gets ignored.
 
 ## Approach
 
-Two complementary skills form a stash/pop cycle:
+Bracket every session with two skills that save and restore a single labeled state file:
 
-1. **Reflect** (at session end) — saves working state to `in_progress/[label].md`
-2. **Continue** (at session start) — reads `in_progress/` and offers to resume
+- **Reflect** runs at session end and writes (or updates) the state file: what's in progress, key decisions, files touched, concrete next steps, open questions.
+- **Continue** runs at session start, finds the most recent state file, and presents it so the user can decide how to proceed.
 
-The label is user-chosen, suggested by the agent based on the session's topic. This makes it a human-readable stash system — you can have multiple in-progress states and pick which one to resume.
+The state file is keyed by a **human-chosen label** — the agent suggests one from the session's topic, the user can override. A label like `memory-architecture` is interpretable at a glance and stable across time and machines, which a generated session ID is not. This makes the mechanism a lightweight stash: `reflect` pushes working state under a name, `continue` pops the most recent one.
 
-```
-in_progress/
-  memory-architecture.md     # Saved 2 hours ago
-  web-ui-refactor.md         # Saved 3 days ago
-  paper-revision.md          # Saved last week
-```
+Two properties keep it honest. The save step *updates* an existing file for the same topic rather than spawning near-duplicates, so there's always one canonical record. And the restore step *presents* state but never auto-executes it — the gap between sessions may have changed priorities or invalidated a planned step, so the agent shows what it found and waits.
+
+These labeled state files are **threads**. This document covers the per-session save/restore loop on one machine; how threads are tracked across many sessions, multiple machines, and projects — and resumed by session ID — lives in [threads.md](threads.md).
 
 ## Implementation
 
-**Reflect** produces a structured markdown file:
+**Reflect (save path):**
 
-```markdown
-# Memory Architecture
+1. Identify or create the state file. If one already exists for the topic, update it — append new decisions, resolve answered questions, replace stale next steps — rather than create a second file.
+2. Write the five sections (in progress / decisions / files / next steps / open questions).
+3. Record that this session worked on the thread (the session-linking step — see threads.md).
 
-## What's in progress
-Designing the recognition hook for the memory system.
-Converged on keyword database approach.
+**Continue (restore path):**
 
-## Key decisions
-- Two-tier storage: MEMORY.md as index, topic files for detail
-- Recognition hook scans prompts against keyword database
-- Reflect maintains both memory files AND recognition database
-
-## Files touched
-- docs/memory-architecture.md (updated design)
-- docs/memory-recognition-hook.md (new)
-
-## Next steps
-- Implement storage format for recognition keywords
-- Write the hook script
-- Wire up in settings.json
-
-## Open questions
-- How many keywords per memory file before splitting?
-- Should the hook inject keywords or full file paths?
-```
-
-**Continue** checks recency and offers options:
-- If the most recent file is less than ~1 day old: present its summary, ask if the user wants to resume
-- If nothing is recent: show a digest of recent states (up to 10), let the user pick or start fresh
-- If `in_progress/` is empty: say so, suggest starting fresh
+1. Check recency. If the most recent state file is under roughly a day old, propose it immediately; otherwise show a digest of recent threads and let the user pick.
+2. Record the resume against the thread *before* presenting state — a bookkeeping step that must happen reliably, so it runs first, not as an afterthought.
+3. Present the state and ask how to proceed. Do not auto-execute the recorded next steps.
 
 ## Gotchas
 
-- **Labels, not session IDs.** Tying state to session IDs or PIDs makes it impossible to resume from a different terminal or machine. Labels are human-meaningful and portable.
+- **Human labels, not session IDs, are the stash key.** Session IDs are machine-generated and meaningless to someone scanning a directory. Labels are interpretable and portable; the underlying session IDs are kept for machine use (resume), but navigation is by label.
 
-- **Don't auto-execute next steps.** Present the saved state and let the user decide. The context may have changed since the state was saved — a dependency may have been updated, priorities may have shifted, or the user may want to take a different approach.
+- **Update, don't duplicate.** When a session continues work already captured under a label, the save step should update that file. Multiple near-identical state files for one topic make it unclear which is canonical — default to updating, and ask when ambiguous.
 
-- **Update, don't duplicate.** When reflecting on work that matches an existing in-progress file, the agent should offer to update the existing file rather than creating a new one. This keeps related work consolidated across sessions instead of producing a trail of near-identical state files.
+- **Don't auto-execute restored state.** Presenting a thread's contents is safe; acting on its "next steps" without checking is not. Time has passed; the plan may be stale.
 
-- **Old files accumulate.** This is fine — they serve as a lightweight work log. The user cleans them up when they want. Don't auto-prune; the user might want to resume something from weeks ago.
-
-- **Cross-project state.** The `in_progress/` directory lives in the current project root, so each project has its own stash. If you work across multiple projects, each has independent state.
+- **Bookkeeping is its own step, not a tail bullet.** An early version buried session-linking as the last sub-point of the state-writing step, and it got skipped. Anything that must happen reliably belongs as a distinct numbered step ahead of the visible payoff, not appended after it.

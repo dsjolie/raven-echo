@@ -1,94 +1,101 @@
-# Echo Generation: Shareable Knowledge from a Private Repo
+# Echo Generation: Publishing Knowledge from a Private Repo
 
 ## Problem
 
-You have a private project with interesting solutions, architecture decisions, and hard-won edge-case fixes. You want to share this knowledge with colleagues and friends — but the repo also contains personal data, project-specific configuration, memory files, and task lists that shouldn't leave your machine.
+Private projects accumulate genuinely useful knowledge: architectural decisions with real rationale, edge-case fixes that took hours to find, patterns that work for non-obvious reasons. Most of it never leaves the machine.
 
-The options aren't great:
-- **Share the repo** — exposes everything, requires cleanup, and couples the recipient to your specific implementation
-- **Write a blog post** — high effort, goes stale, covers only a fraction of what's interesting
-- **Write documentation** — manual curation, constantly out of date
+The conventional escape routes are costly. Copying the repo and manually redacting private data is error-prone — one missed reference exposes something it shouldn't, and the redacted copy immediately diverges from the source. Writing documentation by hand is slow and drifts out of date as the project evolves. Publishing individual blog posts captures only what you chose to write about on that particular day.
 
-You want something in between: a comprehensive extract that stays current with the project, is safe to share, and is useful to both humans and AI agents.
+The deeper problem: filtering a private document to make it public requires you to know exactly what's private. That knowledge is usually implicit. An automated sanitizer makes guesses; guesses leak.
 
 ## Approach
 
-An AI skill reads the live project and **writes fresh descriptions** of its architecture, patterns, and solutions. The output goes to a separate, public repository. The key design decisions:
+Instead of filtering a copy of the source, generate fresh descriptions from the source into a separate public repository. The generator reads the live project — code, configuration, skills — and writes new prose describing what exists and why. No private text is ever copied, so nothing private can be accidentally included.
 
-### Generate, don't filter
+This is the central design decision: **generate, don't filter**. It means the output is always new writing, not a transformed version of internal docs. The generator acts as a reader and writer, not a redactor.
 
-The skill doesn't copy existing documents and strip private information. It reads the source code, docs, and configuration, then writes new prose describing what the system does and why. This eliminates the risk of leaking something — there's no private text to accidentally include.
+Two supporting artifacts define how generation works:
 
-### Scripts must be clean at source
+**A source map** specifies, for each output document, exactly which project files to read. This prevents the generator from loading the entire repo into context at once (which would exhaust the AI's working memory before writing started), and it enforces scope — the generator doesn't wander.
 
-Scripts that are candidates for verbatim inclusion get a specifics check: grep for hardcoded paths, usernames, machine-specific references. If any are found, the script is **not copied** and the failure is reported. The fix happens at the source — parameterize the script — not in the echo generator. This follows the "surface errors, don't swallow them" principle.
+**An output guide** sets the voice and privacy rules that apply to all generated content: what to include (relative repo paths, technical detail, short illustrative code), what to exclude (names, absolute paths, personal data, content from memory/task files), and how to write (focus on why, generalize beyond the specific project, no hedging).
 
-### Separate repository
+The output goes to a separate git repository. The private repo's history, branches, and working state are never visible. Each full run regenerates the complete set — there is no incremental patch, no diff to maintain. The echo reflects the current project state on each invocation.
 
-The output lives in its own git repo, decoupled from the private project. You commit and push when you're satisfied with a generation. The private repo's git history, branches, and working state are never exposed.
+### Scripts: copy clean or report dirty
 
-### Regeneration over maintenance
+Scripts are the one category where the generator may include verbatim content. Before copying any script, it checks for *specifics*: hardcoded absolute paths, personal usernames, machine-specific identifiers, project-specific values that aren't parameterized.
 
-Each run produces a complete fresh set. There's no incremental update or diff — the AI reads the current project state and writes the current echo. This means the echo naturally reflects the project's evolution without manual maintenance. The trade-off: you lose git-level history of how the echo changed over time (though the output repo has its own commits).
+If the script is clean, it is copied verbatim with no modifications.
+
+If specifics are found, the script is **not copied**. The generator reports the exact lines that failed the check. The fix belongs at the source — parameterize the script, then re-run the echo. Auto-sanitizing is explicitly prohibited: a sanitizer that removes the offending line hides the fact that the script wasn't properly written for portability in the first place.
+
+This discipline keeps the echo honest. A script that appears in the output is genuinely reusable; a script that fails the check gets fixed at source rather than patched in transit.
 
 ## Implementation
 
-The generator is structured as an AI skill with three phases:
+The skill runs in four phases:
 
-**Phase 1 — Survey.** Read a source map that lists which project files feed each output document. Build understanding before writing.
+**Survey.** Read the source map to understand which files feed which output documents. Read selectively — only enough to build a working model of the project before writing begins.
 
-**Phase 2 — Generate.** Write each output document in order: README, architecture, principles, patterns, solutions. Each document is written after reading only the sources relevant to it (context management — don't load everything at once).
+**Generate.** Write each output document in dependency order: README and architecture first (no dependencies), then principles, then patterns and solutions (which can reference earlier docs). For each document, read only the sources listed in the source map for that document, write it, then move on. This keeps context pressure manageable.
 
-**Phase 3 — Verify scripts.** Check candidates for hardcoded specifics. Copy clean scripts verbatim. Report dirty ones as errors.
+**Visual overview.** Update a standalone HTML page that serves as the visual entry point — architecture diagram, cards linking to every pattern and solution, principles summary. This page can be hosted as a GitHub Pages site directly from the output repo.
 
-### Source map
+**Script verification.** Check each script candidate against the specifics rules. Copy clean ones verbatim; report dirty ones with the failing lines.
 
-A reference document maps output files to input sources:
+### Source map structure
+
+The source map is a Markdown file in the skill's `references/` directory. Each output document gets its own section listing the input files and the key ideas to extract:
 
 ```
-For architecture.md, read:
-  - CLAUDE.md (project overview)
-  - server.js (first 80 lines for structure)
-  - lib/ (list files, read headers)
-  - Key skill files (for extension architecture)
+## patterns/hook-system.md
+- web-ui/hooks/notify-hook.js      # simple hook example
+- web-ui/hooks/raven-guard.js      # complex hook with mode-based gating
+- skills/raven-work/scripts/sandbox-hook.py  # permission enforcement
 
-For solutions/pty-line-endings.md, read:
-  - terminals.js (where the fix lives)
-  - Memory notes (context on why this was tricky)
+Key ideas: exit-code API (0/1/2), external state read at invocation time,
+matcher-based config format, behavior guidance messages to the model.
 ```
 
-This prevents the AI from wandering through the repo and keeps context focused.
+This makes the scope explicit and reviewable. If a new pattern is added to the project, you add a section to the source map and the next echo run picks it up.
 
 ### Output structure
 
 ```
 echo-repo/
-  README.md              # Entry point — what this is, contents, how to use it
-  architecture.md        # System design, component relationships
-  principles.md          # Design philosophy with examples
-  patterns/              # Reusable approaches (one file each)
-  solutions/             # Edge-case fixes (one file each)
-  scripts/               # Verbatim clean scripts
+  README.md          # entry point, contents, about this repo
+  architecture.md    # system design and component relationships
+  principles.md      # design philosophy with concrete examples
+  history.md         # project timeline, pivots, abandoned approaches
+  patterns/          # reusable patterns (one file each)
+  solutions/         # edge-case fixes (one file each)
+  scripts/           # verbatim clean scripts
+  overview.html      # visual companion, GitHub Pages landing
 ```
 
-### Writing guidelines
+Each pattern and solution file follows the same structure: Problem, Approach, Implementation, Gotchas.
 
-The generator follows explicit rules:
-- **Focus on why**, not just what — the decision and reasoning matter more than the implementation
-- **Generalize** — describe patterns in terms that apply beyond this specific project
-- **No private content** — no names, usernames, institutions, absolute paths, or personal data
-- **Code snippets over full files** — short, illustrative, with enough context to understand
+### Self-reference
+
+This file is itself an echo output. The echo system describes how it generates the echo. The source map lists `skills/raven-echo/SKILL.md`, `skills/raven-echo/references/source-map.md`, and `skills/raven-echo/references/output-guide.md` as the inputs for this document. Reading those three files is sufficient to reconstruct the full generation workflow.
 
 ## Gotchas
 
-- **Context pressure.** The survey phase reads many files. Reading everything at once fills the AI's context before generation starts. The source map enables reading per-document, keeping context manageable.
+**Context scales with project size.** A large project has many source map entries. The per-document reading strategy keeps individual reads manageable, but a single session may not be able to cover the full output set. The skill notes this: split large runs across sessions, writing architecture and principles first, then patterns and solutions.
 
-- **Non-determinism is a feature.** Two runs may describe the same thing differently. This is fine — the latest run reflects the latest understanding. The output is a snapshot, not a maintained document.
+**Non-determinism is acceptable here.** Two generation runs of the same file may phrase things differently. This is a property of AI-generated text, not a defect. The output is a snapshot of current understanding, not a document with a canonical form. The output repo's git log records the history of snapshots.
 
-- **Scope creep.** The temptation is to extract everything. Not every function and file is interesting. The source map and writing guidelines emphasize selectivity — only patterns and solutions that are genuinely non-obvious.
+**The output guide must be specific about privacy.** Vague privacy rules ("don't include personal information") produce inconsistent results. The output guide names exactly what to exclude — names, usernames, absolute paths, memory file content, task lists — and exactly what to include — relative repo paths, technical detail, short illustrative snippets. Specificity makes the rules checkable.
 
-- **The echo is not documentation.** It doesn't replace internal docs, READMEs, or code comments. It's a curated external view — what's worth sharing, written for an outside audience.
+**Echo is not documentation.** It doesn't replace internal READMEs, code comments, or design docs. It's a curated external-facing view, written for builders of similar systems who want to understand what's interesting and why. Internal documentation explains the what; the echo explains the why in terms that generalize.
 
-## Why "Echo"
+**Scope discipline requires active enforcement.** The source map and output guide define scope, but the generator still needs to apply judgment about what is genuinely non-obvious. Routine CRUD endpoints, standard configuration boilerplate, and project-specific implementation details without transferable decisions don't belong in the echo. The test: would a builder of a different agent extension recognize this as a pattern worth knowing?
 
-An echo is a recognizable reflection that travels to others. It's not the original — it's shaped by the space it passes through, simplified by distance, but faithful enough to carry the essential signal. It naturally updates when you call again.
+## Relationship to Spec-Driven Development
+
+The SDD movement (GitHub Spec Kit, Tessl, AWS Kiro) treats specifications as the primary artifact and code as generated output. The echo pattern sits in adjacent territory: it treats knowledge descriptions as primary artifacts and generates them from code.
+
+Where SDD shares intent so others can regenerate an equivalent implementation, the echo shares understanding so others can recognize patterns and adapt them. The two approaches are complementary — a project could maintain both a spec repo (for reproducible implementation) and an echo repo (for transferable knowledge).
+
+The echo is closer to a "prompt repo" in the SDD taxonomy: structured descriptions of what exists, written in natural language, organized for an AI reader as much as a human one. An agent reading `patterns/hook-system.md` has enough information to implement an equivalent hook system in a different project without access to the source.

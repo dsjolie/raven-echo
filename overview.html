@@ -134,6 +134,8 @@
   .arch-ext.memory .name { color: #ff8a80; }
   .arch-ext.sandbox { border-color: rgba(255, 213, 79, 0.25); }
   .arch-ext.sandbox .name { color: #ffd54f; }
+  .arch-ext.threads { border-color: rgba(128, 203, 196, 0.25); }
+  .arch-ext.threads .name { color: #80cbc4; }
 
   .arch-motto {
     text-align: center;
@@ -429,6 +431,10 @@
         <div class="name">Sandbox</div>
         <div class="desc">Autonomous agent boundaries</div>
       </div>
+      <div class="arch-ext threads">
+        <div class="name">Threads</div>
+        <div class="desc">Cross-session work units</div>
+      </div>
     </div>
     <div class="arch-motto">Every CC improvement comes for free</div>
   </div>
@@ -513,7 +519,12 @@
     <a class="card" href="viewer.html?file=patterns/session-continuity.md">
       <span class="card-tag tag-pattern">Pattern</span>
       <div class="card-title">Session Continuity</div>
-      <div class="card-desc">Label-based state stashing across agent sessions — reflect, save, resume.</div>
+      <div class="card-desc">A save-at-end / restore-at-start stash cycle — reflect writes labeled working state, continue resumes the most recent.</div>
+    </a>
+    <a class="card" href="viewer.html?file=patterns/threads.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Threads</div>
+      <div class="card-desc">The work unit between a task and a project — tracked across sessions, machines, and projects via per-machine sidecars and a clone-identity map.</div>
     </a>
     <a class="card" href="viewer.html?file=patterns/spec-driven-sandbox.md">
       <span class="card-tag tag-pattern">Pattern</span>
@@ -529,6 +540,11 @@
       <span class="card-tag tag-pattern">Pattern</span>
       <div class="card-title">Guard System</div>
       <div class="card-desc">Mode-based tool call guardrails — always-on guidance to avoid permission prompts, away mode for unattended operation.</div>
+    </a>
+    <a class="card" href="viewer.html?file=patterns/gitlock.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Commit-Lock</div>
+      <div class="card-desc">An advisory, fail-open lock that serializes git index/HEAD changes when multiple agent sessions share one clone.</div>
     </a>
     <a class="card" href="viewer.html?file=patterns/notification-system.md">
       <span class="card-tag tag-pattern">Pattern</span>
@@ -553,12 +569,22 @@
     <a class="card" href="viewer.html?file=patterns/knowledge-base.md">
       <span class="card-tag tag-pattern">Pattern</span>
       <div class="card-title">Knowledge Base</div>
-      <div class="card-desc">Wiki-style knowledge store with wikilinks, nightly librarian consolidation, and a narrative-knowledge loop.</div>
+      <div class="card-desc">Wiki-style knowledge store with wikilinks, nightly librarian consolidation, and cross-project CLI access.</div>
     </a>
     <a class="card" href="viewer.html?file=patterns/service-registry.md">
       <span class="card-tag tag-pattern">Pattern</span>
       <div class="card-title">Service Registry</div>
       <div class="card-desc">Declarative service registration with liveness pinging and client-side host rewriting for remote access.</div>
+    </a>
+    <a class="card" href="viewer.html?file=patterns/audio-pipeline.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Audio Pipeline</div>
+      <div class="card-desc">Document-to-speech where the rewrite-into-spoken-form step matters more than the engine, with content-hashed caching.</div>
+    </a>
+    <a class="card" href="viewer.html?file=patterns/desktop-launcher.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Desktop Launcher</div>
+      <div class="card-desc">A native Wails shell managing multiple local and remote web-app instances, each in its own state-preserving iframe.</div>
     </a>
   </div>
 </div>
@@ -578,7 +604,7 @@
     <a class="card" href="viewer.html?file=solutions/venv-node-integration.md">
       <span class="card-tag tag-solution">Solution</span>
       <div class="card-title">Venv + Node.js</div>
-      <div class="card-desc">Python venv resolution when Node.js spawns subprocess — it doesn't inherit the shell's PATH.</div>
+      <div class="card-desc">Pin both the Python interpreter and its output encoding when Node.js shells out — PATH and the OS locale aren't enough.</div>
     </a>
     <a class="card" href="viewer.html?file=solutions/claude-detection.md">
       <span class="card-tag tag-solution">Solution</span>
@@ -590,6 +616,11 @@
       <div class="card-title">Process Lifecycle</div>
       <div class="card-desc">npm start orphans child processes when killed. Run node directly.</div>
     </a>
+    <a class="card" href="viewer.html?file=solutions/pwd-p4-leak.md">
+      <span class="card-tag tag-solution">Solution</span>
+      <div class="card-title">Inherited PWD Leak</div>
+      <div class="card-desc">A spawned shell inherits PWD from its parent, and a config-walking tool trusts it over the real working directory. Strip it.</div>
+    </a>
     <a class="card" href="viewer.html?file=solutions/dropbox-file-locking.md">
       <span class="card-tag tag-solution">Solution</span>
       <div class="card-title">Cloud Sync Locking</div>
@@ -599,6 +630,11 @@
       <span class="card-tag tag-solution">Solution</span>
       <div class="card-title">Windows Shell Quirks</div>
       <div class="card-desc">Encoding, paths, null redirection, and other surprises when building agent tools on Windows.</div>
+    </a>
+    <a class="card" href="viewer.html?file=solutions/cross-platform.md">
+      <span class="card-tag tag-solution">Solution</span>
+      <div class="card-title">Cross-Platform Seams</div>
+      <div class="card-desc">Where one repo on Windows and macOS clones actually breaks — BSD vs GNU sed flags, machine identity, OS-specific labels.</div>
     </a>
     <a class="card" href="viewer.html?file=solutions/xterm-upgrade.md">
       <span class="card-tag tag-solution">Solution</span>
@@ -634,6 +670,10 @@
     <div class="principle">
       <div class="rule">Don't be defensive</div>
       <div class="why">The goal is to do the right thing, not to justify what's already been done.</div>
+    </div>
+    <div class="principle">
+      <div class="rule">Read fully — directly or by proxy</div>
+      <div class="why">Delegate full reads to a careful-reader subagent, never a summarizer — a summarizer hides what it dropped.</div>
     </div>
     <div class="principle">
       <div class="rule">Synthesize, don't summarize</div>

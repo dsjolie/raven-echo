@@ -2,66 +2,85 @@
 
 ## Problem
 
-An AI agent running in a terminal has no way to proactively communicate with the user through a visual interface. It can write to stdout, but that's lost in the scroll. When an agent completes a long-running task, composes a morning briefing, or encounters an error worth highlighting, there's no persistent channel to reach the user — especially if the user isn't watching that specific terminal.
+An agent operating inside a terminal has no natural way to reach a human who isn't watching that terminal. Writing to stdout works while someone is present and attentive; it fails for out-of-band communication — morning briefings delivered by a cron job, error alerts from a hook firing mid-session, completion signals from long-running autonomous work. The signal either scrolls by unnoticed or never gets seen at all.
+
+The requirement is one-way agent-initiated messaging: the agent speaks, the browser listens, and the human sees it whenever they look at the UI — whether that's 30 seconds or 8 hours later.
 
 ## Approach
 
-An HTTP endpoint (`/api/ui`) accepts notification requests and broadcasts them to all connected browser clients via WebSocket. Two notification types serve different needs:
+A single HTTP endpoint accepts notification requests. Depending on the notification type, the server either persists the payload to disk and broadcasts it over WebSocket, or broadcasts only. Two distinct durability levels map to two distinct use cases:
 
-- **Modals** — persistent, require explicit dismissal, survive server restarts. Used for anything the user shouldn't miss: daily briefings, error reports, important alerts.
-- **Toasts** — ephemeral, fade after a timeout, not stored. Used for confirmations, progress updates, status changes.
+- **Modals** — persistent. Stored to a JSON file on disk, held in memory, delivered to every browser that connects (now or later). Require explicit user dismissal. Suited to anything the human must eventually see: briefings, alerts, work summaries.
+- **Toasts** — ephemeral. Broadcast over WebSocket and forgotten. Auto-dismiss after a few seconds. Suited to transient acknowledgements and status changes where the content is unimportant if missed.
 
-Both support markdown rendering in the browser. A CLI wrapper script makes the endpoint callable from any context — hooks, cron jobs, other agent sessions, or manual invocation.
+A thin Bash CLI wraps the HTTP calls so any context — hooks, cron jobs, subagents, manual invocation — can push a notification with a single shell command. No library dependency, no Python environment required.
 
 ## Implementation
 
-### Server side
+### Server: splitting paths early
 
-The API endpoint splits modals and toasts at the entry point. Modals go through storage (persisted to a JSON file, added to the in-memory array, broadcast). Toasts bypass storage entirely — they're assigned an ID and broadcast, nothing else.
+The endpoint handler branches on `action` before doing anything else. Modals call `addNotification()`, which assigns an ID, timestamps the record, appends it to the in-memory array, and flushes the array to `web-ui/data/notifications.json`. Toasts skip `addNotification()` entirely — they get an ID and are broadcast immediately, with no write to disk.
 
 ```javascript
-// Modal: store + broadcast
 if (msg.action === 'modal') {
-  const notif = addNotification(msg);  // persists to disk
+  const notif = addNotification(msg);   // assigns id, timestamps, persists
   broadcast({ type: 'ui-notify', ...notif });
-}
-// Toast: broadcast only
-else if (msg.action === 'toast') {
-  msg.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+} else if (msg.action === 'toast') {
+  if (!msg.id) msg.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   broadcast({ type: 'ui-notify', ...msg });
 }
 ```
 
-On WebSocket connect, the server sends all pending (undismissed) modals to the new client. This ensures nothing gets lost if the browser reconnects or if the notification arrived while no browser was open.
+The decision to split at the entry point rather than inside a shared function matters. A shared function with an internal `if (isModal) persist()` guard creates a single point of failure: any path that bypasses the guard (edge case, Dropbox sync restoring an older file, logic error) silently promotes a toast into permanent storage. Separating the paths means the invariant — toasts never touch disk — is structural, not conditional.
 
-**Design lesson:** An earlier implementation routed both modals and toasts through the same `addNotification()` function, with a guard inside that only persisted modals. This caused a recurring bug: toasts ended up in storage (via Dropbox sync conflicts restoring an older file, or edge cases in the guard logic) and re-appeared on every page reload. The fix was to separate the paths at the entry point — toasts never touch storage, so there's no guard to fail. Three defensive filters at downstream points (load, write, send) were symptoms of not fixing the root cause.
+### Server: pending-on-reconnect
 
-### Client side
+On each new WebSocket connection, after sending the current terminal list and guard state, the server iterates `_notifications` and sends every stored modal to the new client:
 
-The browser renders modals as overlay dialogs with a dismiss button. Toasts appear as temporary banners. Both render markdown content using a lightweight parser.
-
-### CLI interface
-
-A Bash script wraps curl calls to the API:
-
-```bash
-raven-ui modal "Build Complete" "All tests passed. Ready to deploy."
-raven-ui toast "Status" "Guard mode set to away" --style info
-raven-ui dismiss <notification-id>
+```javascript
+// Send pending notifications (modals survive server restarts + reconnects)
+for (const notif of _notifications) {
+  ws.send(JSON.stringify({ type: 'ui-notify', ...notif }));
+}
 ```
 
-This makes notifications composable. A cron job can compose a briefing and push it as a modal. A hook can send a toast when a session starts. An agent can notify about completed work.
+This means a modal created at 03:00 by a cron job is still visible when the browser opens at 09:00. The user never needs to be connected at the moment of delivery.
 
-### Typical flow
+### Server: dismissal
 
-1. Agent (or cron job, or hook) calls `raven-ui modal "Title" "Body"`
-2. CLI script POSTs JSON to `/api/ui`
-3. Server assigns an ID, persists to `notifications.json`, broadcasts via WebSocket
-4. Browser renders the modal overlay
-5. User reads and dismisses → browser sends dismiss → server removes from storage
+A `dismiss` action removes the notification from `_notifications` by ID and broadcasts a `ui-dismiss` message so all connected clients can update their state. The in-memory array and the JSON file are kept in sync on every mutation.
+
+### Client: rendering
+
+The browser side (`web-ui/public/js/notify.js`) maintains a `pending` map of undismissed modal IDs. When a `ui-notify` message arrives:
+
+- For a modal: deduplicate by ID, add to `pending`, show immediately if no other modal is currently displayed (otherwise the next one surfaces on dismiss of the current one — FIFO queue).
+- For a toast: create a DOM element, append to a container, schedule removal after a timeout (default 5 s, overridable via `duration`).
+
+Modal body content is passed through `marked.parse()` when `marked` is available, falling back to newline-to-`<br>` substitution. This lets agents write structured markdown — headers, bullet lists, code blocks — without the client needing to know anything special.
+
+Dismissal sends a WebSocket message back to the server (`type: 'dismiss-notification'`), which triggers the server-side delete-and-broadcast. The client also listens for `ui-dismiss` from the server so that dismissal from one browser tab or device is reflected everywhere.
+
+### CLI wrapper
+
+The CLI script (`skills/raven-ui/scripts/raven-ui`) resolves the server port from `$RAVEN_UI_PORT` (defaulting to 3000), constructs JSON payloads via a small inline Python snippet (to handle quoting and file-reading correctly), and posts to `/api/ui` via curl:
+
+```bash
+raven-ui modal "Morning Briefing" "Research complete. See attached." --file docs/reports/today.md
+raven-ui toast "Guard mode" "Now: away" --style info
+raven-ui dismiss a3f9b2
+```
+
+The `--file` flag reads the body from a file, bypassing shell argument length limits for large markdown reports. The `--style` flag adds a CSS class (`notify-info`, `notify-warn`, `notify-error`) for color-coding. The return value includes the assigned notification ID, which the caller can capture for subsequent dismissal.
+
+The script is installed globally via a junction, so it resolves correctly from any project working directory without activation or path manipulation.
 
 ## Gotchas
 
-- **Markdown in shell arguments.** Passing markdown with backticks and special characters through Bash requires careful quoting. The CLI tool handles this, but calling the API directly from `curl` needs attention.
-- **Notification accumulation.** Modals persist until dismissed. If an automated job creates one daily and the user doesn't check for a week, seven modals queue up. The current design treats this as acceptable — better to show all of them than to silently drop some.
-- **No notification routing.** All connected browsers receive all notifications. There's no concept of "send this to terminal 3 only." For a single-user system this is fine; it would need rethinking for multi-user.
+- **Markdown in shell arguments.** Backticks, double-quotes, and `$` all cause trouble when passed as Bash arguments. The `--file` option sidesteps this for larger content; inline bodies with special characters still need careful quoting or heredoc wrapping at the call site.
+
+- **Modal accumulation.** Persistent storage means unchecked notifications pile up. An automated process running daily will produce one modal per day; a week offline yields seven queued modals. The design treats queuing as correct behavior — silent drops would be worse. If accumulation becomes a problem the right fix is a time-to-live field on the notification record, not a storage cap.
+
+- **No targeted delivery.** Every connected browser client receives every notification. This is appropriate for a single-user personal assistant; a multi-user context would need per-session or per-user routing at the WebSocket layer.
+
+- **Server must be running.** The CLI call fails cleanly (curl exit code + stderr message) if the web UI server isn't running, but the notification is lost — there's no local queue that drains when the server starts. For overnight autonomous work the server is assumed to be up; scheduled jobs that might precede server start need their own retry or the notification reaches the human only when the server next runs.

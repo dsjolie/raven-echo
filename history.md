@@ -1,86 +1,99 @@
 # History
 
-A timeline of how Raven evolved from a research spike into a working personal AI assistant.
+How Raven evolved from a research spike into a working personal AI assistant. This is the one document here that's about Raven specifically rather than generalizable patterns — it's the context for why the patterns and solutions exist.
 
 ## Origins (Feb 2026)
 
-Raven started on February 2, 2026 as a research project exploring what a personal AI assistant could look like. The first commit was just structure and notes — no code. The initial days were spent surveying the landscape: existing agent frameworks, session management patterns, the Agent SDK, MCPorter, and whether to build something from scratch.
+Raven began on February 2, 2026 as a research project asking what a personal AI assistant could be. The first commit was structure and notes — no code. The opening days went to surveying the landscape: existing agent frameworks, session-management patterns, the Anthropic Agent SDK, MCPorter, and the build-vs-extend question.
 
-The early research looked seriously at TypeScript (for a custom agent framework) and at the Anthropic Agent SDK (for a standalone interface). Both were evaluated and set aside. The Agent SDK required an API key and didn't have official support for subscription-based authentication. A custom framework meant reimplementing features that Claude Code already had and would keep improving.
+Two serious candidates were evaluated and set aside. A custom TypeScript agent framework would mean reimplementing tool use, editing, and context management that Claude Code already had and would keep improving. The Agent SDK required an API key and lacked official support for subscription-based auth. Both roads led back to the same realization.
 
 ## The Pivot (Feb 7)
 
-Five days in, the project pivoted decisively: **extend Claude Code, don't replace it.** This was the most important architectural decision. Rather than building a competing agent framework, Raven would add capabilities through CC's native extension points — skills, hooks, and context files.
+Five days in, the project pivoted decisively: **extend Claude Code, don't replace it.** This is the most consequential decision in Raven's history. Instead of competing with the agent core, Raven would add capability through Claude Code's native extension points — skills, hooks, and context files — and let the engine improve underneath it for free.
 
-The same day, the first skills appeared (`raven-status` for cross-project overview, `raven-reflect` for session review), the archive directory was created for abandoned approaches, and the web terminal — originally a standalone experiment — was moved into the project and restructured as a flat architecture.
+The same day, the first skills appeared (`raven-status` for cross-project git overview, `raven-reflect` for session review), an archive directory was created for abandoned approaches, and an experimental standalone web terminal was folded into the project under a flat, component-per-directory architecture.
 
 ## The Web UI (Feb 7–15)
 
-The web terminal quickly evolved beyond a simple terminal. On February 7 it became a panel-based workspace — an app shell with `registerPanel()`, a message bus, and lifecycle hooks. Status and sessions panels appeared the same day.
+The web terminal outgrew its name fast. Within days it became a panel-based workspace: an app shell with `registerPanel()`, a message bus, and a panel lifecycle. Status and sessions panels landed the same week, then mobile support (touch scrolling, a shortcut bar, compose mode, voice input), terminal-level Claude detection, and an about page.
 
-Over the next week, the UI grew mobile support (touch scrolling, shortcut bar, compose mode, voice input), Claude detection in terminals, and an About page. The metaphor crystallized: the server is the kernel, the browser is the window manager, panels are applications. Each new surface could be added without touching the core.
+The organizing metaphor crystallized here and still holds: the server is the kernel, the browser is the window manager, panels are applications. New surfaces plug in without touching the core.
 
-## The Memory Paper (Feb 8–Mar)
+## The Memory Paper (Feb 8 onward)
 
-Alongside the tool-building, a research thread was running: how should AI agents handle persistent memory? This became a formal paper — "I Know I Know This: Recognition First in Agent Memory" — exploring dual-process theory applied to agent retrieval. The recognition-gated retrieval design emerged on February 8, arguing that agents should use cheap recognition signals before expensive retrieval.
+A research thread ran alongside the tooling: how should AI agents handle persistent memory? It became a formal paper — *"I Know I Know This: Recognition First in Agent Memory"* — applying dual-process theory to agent retrieval, arguing that agents should use cheap recognition signals before paying for expensive retrieval.
 
-The paper went through multiple revision cycles, a verification pass that caught 22 hallucinated bibliography entries (a significant lesson), a novelty search, and deep dives into related work (Memento 2's SRDP framework, ENGRAM's typed memory, HiMem's reconsolidation). A shorter version became the primary submission target, with the long paper demoted to reference.
+A verification pass on the manuscript caught 22 hallucinated bibliography entries. That single incident shaped two later tools (`raven-verify`, then a citation-recall benchmark) and hardened the project's stance on reading and checking sources. A shorter version became the primary submission; the long paper was demoted to reference.
 
 ## Verification and Security (Feb 19–22)
 
-The `raven-verify` skill was built to verify claims and references in prose documents — prompted directly by the bibliography hallucination incident. Three-pass extraction (claims, verification, references) with four modes.
+`raven-verify` was built directly in response to the bibliography incident — a three-pass tool (extract claims, verify them, audit references) for prose documents. `raven-audit` followed, scanning Claude Code's permission configuration for stale rules and bypass vectors. Research into the "lethal trifecta" (tool access + untrusted input + an exfiltration channel) produced deny rules and tool guidance that still ship today.
 
-`raven-audit` followed, auditing Claude Code's permission configuration for security issues, stale rules, and bypass vectors. Research into the "lethal trifecta" (tool access + untrusted input + exfiltration channel) shaped deny rules and tool guidance that persists today.
+## The Task System (Feb 27 onward)
 
-## The Task System (Feb 27–Mar)
-
-A centralized task management system appeared on February 27: markdown files (one per project), a Python CLI parser (`rtasks`), and web UI panels. The key design choice was CLI-as-API — Python owns all parsing, Node.js calls it with `--json`. This avoided reimplementing deadline logic and project resolution in two languages.
-
-The system grew incrementally: inline editing, an overview panel with urgency-grouped cards across all 17 tracked projects, an inbox, `#next` and `#auto` tags for working-set selection and autonomous work marking, and orphan task file detection.
+A cross-project task system arrived: markdown files (one per project), a Python CLI parser, and web UI panels. The defining choice was CLI-as-API — Python owns all parsing and deadline logic, Node calls it with `--json` — so the rules live in one place instead of being reimplemented per consumer. It grew inline editing, an urgency-grouped overview across every tracked project, an inbox, and inline tags (`#next`, `#auto`, `#agent`) for working-set selection and autonomous-work marking.
 
 ## Sandboxed Work (Mar 1)
 
-`raven-work` introduced spec-driven autonomous work sessions with hook-enforced permission boundaries. Three profiles (dev, research, review) define what the agent can access. A PreToolUse hook checks every tool call against the profile — file paths against worktree boundaries, commands against allowlists. The principle: if you can run it, you can't write it.
+`raven-work` introduced spec-driven autonomous sessions with hook-enforced boundaries. Three profiles (dev, research, review) declare what the agent may touch; a PreToolUse hook checks every call against the profile — paths against worktree boundaries, commands against an allowlist. The governing rule: if you can run it, you can't write it.
 
 ## The Persistent Coordinator (Mar 14)
 
-Munin — named after one of Odin's ravens (the one representing memory) — was introduced as a persistent Claude Code session that auto-launches with the web UI server. It handles scheduled tasks and serves as a coordination point. A toolbar button in the web UI indicates whether Munin is running.
-
-The same day, `raven-echo` was created to generate shareable knowledge extracts from the private repo.
+Munin — named for one of Odin's ravens, the one that stands for memory — arrived as a persistent Claude Code session that auto-launches with the web UI server and serves as the standing target for scheduled work. The same day, `raven-echo` was created to generate shareable knowledge extracts from the private repo (this repository is its output).
 
 ## Notifications and Scheduling (Mar 16–19)
 
-The notification system gave agents a way to push messages to the browser — persistent modals for things that shouldn't be missed, ephemeral toasts for status updates. A CLI wrapper (`raven-ui modal/toast`) made it callable from any context.
-
-The server-side scheduler (node-cron with a JSON config file) connected cron expressions to terminal prompt injection — writing commands directly to named terminal PTYs when the agent is running. Hot-reloadable without server restart. First jobs: daily memory consolidation at 04:00, morning briefings at 06:28.
+The notification system gave agents a way to push to the browser: persistent modals for things that must not be missed, ephemeral toasts for status. A CLI wrapper made it callable from any context. The server-side scheduler (node-cron over a hot-reloadable JSON config) connected cron expressions to terminal prompt injection — writing commands straight into a named terminal's PTY. First jobs: nightly memory consolidation and a morning briefing.
 
 ## The Guard System (Mar 20–22)
 
-`raven-guard` refactored away-mode into a three-tier system: always-on guardrails that catch permission-triggering patterns (like `cd && command` or `$()`), away-mode blocking for unattended operation, and off. The key insight was guidance over blocking in default mode — teaching the agent to avoid problematic patterns rather than just preventing them.
-
-The web UI got a sidebar button and API endpoint for toggling guard modes, and a speed dial submenu for quick access.
+`raven-guard` reorganized tool gating into three modes: always-on guidance that catches permission-triggering command patterns, away-mode blocking for unattended runs, and off. The key insight was *guidance over blocking* in the default mode — teaching the agent to avoid problematic patterns rather than just refusing them. A sidebar toggle and API endpoint exposed the modes.
 
 ## The Overnight Pipeline (Mar 22–30)
 
-The guard's away mode plus the scheduler enabled a qualitative shift: unattended overnight automation. The initial pipeline ran auto-tasks locally at 03:05, but local-only operation couldn't do web research.
+Away mode plus the scheduler enabled a qualitative shift: unattended overnight automation. Local-only operation couldn't do web research, so the work split in two. A cloud-hosted Claude Code session (scheduled hourly) handles tasks needing web access — one task per run, committed incrementally to a shared branch. The local agent brackets the cloud run: a night-push commits safe work and pre-fetches JavaScript-rendered pages, a night-pull reviews the branch and merges to main as a quality gate.
 
-The solution was a local-cloud split. A cloud-hosted Claude Code session (via Anthropic's RemoteTrigger API, running Sonnet on a 03:00 UTC cron) handles tasks needing web access. The local agent brackets the cloud run: a night-push at 02:30 commits safe work and pre-fetches JavaScript-rendered URLs (via headless Chrome), a night-pull at 05:00 retrieves cloud results.
+The git repo became the coordination bus between agents — no direct agent-to-agent channel, just files in a repo. The cloud agent's undocumented time limit forced an incremental-commit habit and a continuation pattern (merge partial results, push, re-trigger with "continue from where you left off") that delivered a multi-run literature review across sequential cloud sessions.
 
-The git repository became a coordination bus between agents. The cloud agent reads task files, writes reports to `incoming/`, and pushes. The local agent pulls and summarizes. No direct agent-to-agent communication — just files in a repo.
+## Threads as First-Class State (late Apr)
 
-The cloud agent's undocumented execution time limit prompted an incremental commit pattern: commit and push after each completed task rather than batching at the end. When a large research task timed out, a continuation pattern emerged: merge partial results into main, push, create a new one-shot trigger with "continue from where you left off" instructions. This delivered a complete 7-theme literature review across 3 sequential cloud agent runs.
+The reflect/continue pair had been stashing per-session working state to `in_progress/<label>.md`. In late April that crystallized into a named concept — a *thread*, the unit of work between a single task and a whole project — with its own skill (`raven-threads`) and web UI panel. The important wrinkle: sessions touching a thread are recorded in **per-machine sidecar files** (`in_progress/machines/<clone>/<label>.md`), so several machines cloning the same repo each log their own session history without git conflicts. Machine identity resolves through a hostname→friendly-name map.
 
-Cross-platform support also landed in this period: the sync-skills script gained macOS symlink support (previously Windows junctions only), and the activate-venv script handles both platforms.
+## The Reading Principle (May 7)
 
-## Current State (Mar 30, 2026)
+The project's principle set had covered debugging, error handling, simplicity, critical reasoning, intellectual honesty, and synthesis. A seventh was added: **Read fully — directly or by proxy. Log the read.** It names the failure mode of routing source material through a summarizer and reasoning about the gist, and prescribes the careful-reader subagent as the cost-mitigation that preserves the read instead of discarding it. A per-conversation reading log (with provenance and verbatim excerpts) makes "I read it" auditable.
 
-Eight weeks from first commit. The system has:
+## Audio (May)
 
-- **15 skills** covering status, reflection, continuity, task management, verification, security auditing, sandboxed work, paper reading, memory consolidation, knowledge sharing, tool guardrails, and skill development
-- **A panel-based web UI** with terminal, tasks, overview, sessions, status, memory, settings, read, and about panels — accessible from desktop and mobile
-- **A notification and scheduling system** for proactive agent behavior
-- **An overnight local-cloud pipeline** for unattended research, memory maintenance, and security auditing
-- **A research paper** on agent memory architecture, under revision for publication — plus a new assessment/examination paper spawned from overnight cloud research
-- **An echo system** (this repo) for sharing knowledge from a private codebase
+A text-to-speech pipeline turned documents into listenable audio: markdown → strip → chunk → TTS → a content-hashed cache → published audio files, surfaced in the web UI's reader panel. The headline lesson is a thesis the project still holds with appropriate humility — the *rewrite* step (turning prose into spoken form) matters more than the engine, and the hand-rewrite-vs-LLM-rewrite link is the part not yet validated.
 
-Active work fronts include memory architecture implementation (recognition hook design converged, implementation next), the assessment paper (courses-as-courses), and continued overnight pipeline refinement.
+## Cross-Project Knowledge (May 14)
+
+The wiki had lived inside the Raven repo. An `rwiki` CLI made it readable and writable from *any* project's working directory, via a discovery sentinel and narrowly-scoped file allows, with an audit-side scanner enforcing the routing discipline. Knowledge stopped being trapped in one repo — a session in any tracked project can reach the shared store without switching context.
+
+## Multi-Session Safety: The Commit-Lock (May 28)
+
+Running more than one Claude Code session in a single shared clone exposed a real hazard: they share one working tree, index, and HEAD, so concurrent `git add` cross-contaminates the stage and a `git commit --amend` can rewrite the wrong commit. `raven-gitlock` added an advisory commit-lock — a session claims the stage→commit sequence; the guard hook blocks index/HEAD-mutating git unless the caller holds the lock; reads and `push` are never gated; the lock fails open so it can never brick the repo.
+
+## The Desktop Shell (late May)
+
+A small Wails app (Go + system WebView) wrapped the browser workspace as a native, multi-instance launcher: it spawns and stops *local* web-ui instances itself, connects to *remote* ones over a VPN, and embeds each in its own iframe so switching between Ravens preserves live session and terminal state. Several Windows GUI/environment gotchas (PATH for spawned processes, iframe clipboard delegation, an environment-variable leak that confused a config-walking tool) were worked out here.
+
+## Going Cross-Platform (early Jun)
+
+What started Windows-only grew a second home on macOS. The skill-sync mechanism already handled symlinks alongside junctions; the June work filled in the smaller seams where portability actually breaks — BSD vs GNU `sed -i` flags, OS-conditional UI labels (Finder vs Explorer), and the multi-machine identity map that keeps per-clone state files from colliding.
+
+## Current State (Jun 6, 2026)
+
+About four months from first commit. The system now has:
+
+- **Around twenty skills** — status, reflection, continuity, threads, task and inbox management, claim/reference verification, security auditing, sandboxed work, paper reading, memory consolidation, knowledge wiki access, audio narration, knowledge-echo generation, tool guardrails, away mode, commit-locking, and skill development itself.
+- **A panel-based web UI** spanning terminal, tasks, overview, sessions, status, memory, wiki, reader, and settings — usable from desktop, mobile, and a native desktop shell.
+- **A notification and scheduling system** plus a persistent coordinator session for proactive, scheduled agent behavior.
+- **An overnight local-cloud pipeline** for unattended research, memory maintenance, and security auditing.
+- **A wiki knowledge base** reachable from every tracked project, with nightly librarian-style consolidation and reflective daily narratives.
+- **Research papers** on agent memory and on assessment design, both spun out of the day-to-day work.
+- **This echo repo**, regenerated periodically from the private codebase.
+
+Active fronts include incremental memory-architecture work, the assessment and memory papers, cross-platform hardening, and continued refinement of the overnight pipeline.

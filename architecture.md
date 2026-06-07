@@ -2,136 +2,139 @@
 
 ## Core Strategy: Extend, Don't Replace
 
-Raven is not an agent framework. It's a layer on top of Claude Code — Anthropic's CLI agent that already handles tool use, file editing, code generation, subagent orchestration, and conversation management.
+Raven is not an agent framework. It's a layer on top of Claude Code — Anthropic's CLI agent, which already handles tool use, file editing, code generation, subagent orchestration, and conversation management.
 
-The rationale: CC is actively developed by a well-resourced team. Every improvement to models, tool handling, and context management comes for free. Building a competing harness means reimplementing features that already exist and will keep improving. Instead, Raven extends CC through its native extension points:
+The reasoning is economic. Claude Code is built by a well-resourced team and improves continuously; every gain in models, tool handling, and context management arrives for free. Building a competing harness means reimplementing all of that and then racing to keep up. So Raven adds capability through Claude Code's native extension points instead:
 
-- **Skills** — markdown instruction files that teach CC new workflows
-- **Hooks** — shell scripts that fire on CC lifecycle events (session start, tool use, stop)
-- **Context files** — CLAUDE.md and memory files that provide persistent knowledge
+- **Skills** — markdown instruction files that teach the agent new workflows, each re-read on invocation.
+- **Hooks** — scripts that fire on agent lifecycle events (session start, every tool call, permission requests, stop).
+- **Context files** — instruction and memory files that carry persistent knowledge into every session.
 
-This means the entire "agent core" is CC itself. Raven provides the domain knowledge, the access layer, and the glue.
+The entire "agent core" is Claude Code itself. Raven supplies the domain knowledge, the access layer, and the glue between the agent and a real working environment.
 
 ## Component Map
 
 ```
 Claude Code (the engine)
   │
-  ├── skills/              Markdown skills + CLI tools, synced via filesystem links
-  │     ├── SKILL.md       Instructions for CC (re-read on each invocation)
-  │     ├── references/    Supporting docs (always live, no restart needed)
-  │     └── scripts/       CLI tools in Python/Go/Bash
+  ├── skills/         Markdown skills + CLI tools, synced via filesystem links
+  │     ├── SKILL.md      Instructions for the agent (re-read each invocation)
+  │     ├── references/   Supporting docs (live, no restart needed)
+  │     └── scripts/      CLI tools in Python / Go / Bash
   │
-  ├── web-ui/              Browser-based workspace
-  │     ├── server.js      HTTP + WebSocket server, PTY management, scheduler, notifications
-  │     ├── lib/           Service modules (terminals, tasks, sessions, memory, status)
-  │     ├── public/        Client-side panels + core app shell
-  │     ├── hooks/         CC hook scripts (notification, guard)
-  │     └── data/          Runtime config (jobs.json, documents.json, notifications.json)
+  ├── web-ui/         Browser-based workspace
+  │     ├── server.js     HTTP + WebSocket, PTY management, scheduler, notifications
+  │     ├── lib/          Service modules (terminals, tasks, sessions, threads,
+  │     │                 status cache, memory monitor, files)
+  │     ├── public/       Client panels + the core app shell
+  │     ├── hooks/        Agent hook scripts (notify, guard, gitlock-nudge, away-reject)
+  │     └── data/         Runtime config (jobs.json, documents.json, notifications.json)
   │
-  ├── scripts/             CLI tools callable from any context (raven-ui, raven-guard)
-  ├── docs/                Research, architecture notes, design documents
-  ├── tasks/               Per-project task files (markdown)
-  └── projects.json        Registry of all tracked projects with paths and metadata
+  ├── desktop-app/    Native shell (Wails / Go) wrapping one or more web-ui instances
+  ├── scripts/        CLI tools callable from any context (audio narration, sync, etc.)
+  ├── knowledge/      Wiki: index, topic articles, daily narratives
+  ├── in_progress/    Thread state + per-machine session sidecars
+  ├── tasks/          Per-project task files (markdown)
+  ├── docs/           Research, architecture notes, design documents
+  └── projects.json   Registry of tracked projects: paths, shorthands, metadata
 ```
 
-Each top-level directory is independent. No component requires another to function — the web UI can run without skills, skills work without the web UI, and task management works from either the CLI or the browser.
+Each top-level directory is independent. No component requires another to run — the web UI works without skills, skills work without the web UI, and tasks are usable from either the CLI or the browser. The coupling that exists is through shared *data* (the registry, the task files, the git repo), not through code dependencies.
 
 ## The Web UI: An OS Metaphor
 
-The web UI follows an operating system metaphor where the server is the kernel and the browser is the window manager.
+The web UI is organized like an operating system: the server is the kernel, the browser is the window manager.
 
-**Server (kernel):** `server.js` + `lib/` modules handle system-level concerns — spawning PTY processes, managing WebSocket connections, executing task operations, monitoring memory usage, running scheduled jobs, storing notifications. It exposes an API (HTTP + WebSocket) and doesn't render any UI.
+**Server (kernel):** `server.js` plus the `lib/` modules handle system-level concerns — spawning PTY processes, managing WebSocket connections, executing task operations, watching memory usage, running scheduled jobs, storing notifications. It exposes an API (HTTP + WebSocket) and renders no UI.
 
-**Client (window manager):** `app.js` provides panel registration and switching, a message bus, and connection lifecycle management. It contains no domain logic — it's a window manager that panels plug into.
+**Client (window manager):** `app.js` provides panel registration and switching, a message bus, and connection lifecycle management. It holds no domain logic — panels plug into it.
 
-**Panels (applications):** Each panel registers with `Raven.registerPanel()` and gets an init/activate/deactivate lifecycle. Panels communicate through the message bus (`Raven.on/dispatch` for local events, `Raven.send` for server events). Current panels include terminal, tasks, overview, sessions, status, settings, memory monitoring, and more.
+**Panels (applications):** Each panel registers with `Raven.registerPanel()` and gets an init/activate/deactivate lifecycle. Panels talk through the message bus (`Raven.on`/`dispatch` for local events, `Raven.send` for server events). Adding a panel means writing one JavaScript file — no changes to the server or the shell.
 
-This separation matters because it keeps the protocol boundary clean. CC hooks, browser panels, CLI scripts, and scheduled jobs are all just API consumers. Adding a new panel means writing one JavaScript file that calls `registerPanel()` — no changes to the server or the core app shell.
+This keeps the protocol boundary clean: hooks, browser panels, CLI scripts, and scheduled jobs are all just API consumers, none of them privileged.
 
 ## CLI-as-API
 
-The task system demonstrates a pattern used throughout: **Python owns the parsing, Node.js owns the serving.**
+A pattern used throughout: **the CLI tool is the implementation; everything else calls it.**
 
-A Python CLI tool (`rtasks.py`) handles all task file parsing, deadline logic, and project resolution. It accepts a `--json` flag for structured output. The Node.js server (`lib/tasks.js`) is a thin wrapper — ~100 lines — that calls the Python script via `execFile` and returns parsed JSON to the browser.
-
-A Bash CLI tool (`scripts/raven-ui`) wraps the web UI's HTTP API — sending notifications, creating terminals, querying sessions — all via curl. This makes the web UI's capabilities available to any context: hooks, cron jobs, other agents.
-
-This avoids reimplementing complex parsing in two languages. Each CLI tool works standalone from the terminal, and other components get the same logic for free. The trade-off is a subprocess per request, which is fine at personal-tool scale.
+A Python CLI owns all task-file parsing, deadline logic, and project resolution, and offers a `--json` flag. The Node server module is a thin wrapper that shells out to it and returns parsed JSON to the browser. The same tool runs standalone in a terminal, and every other consumer gets identical behavior for free — no parser reimplemented in a second language. A separate Bash CLI wraps the web UI's own HTTP API (notifications, terminal creation, session queries) so the UI's capabilities are reachable from hooks, cron jobs, and other agents. The cost is a subprocess per request, which is irrelevant at personal-tool scale.
 
 ## Hooks as Integration Points
 
-CC hooks fire shell commands on agent lifecycle events. Raven uses them at three different complexity levels:
+Hooks fire scripts on agent lifecycle events, and they're the primary way Raven integrates with the agent without modifying it. They run at several complexity levels:
 
-1. **Notification** — A lightweight hook (`notify-hook.js`) fires on session start, stop, and permission requests. It sends a single HTTP POST to the web UI and exits. The web UI uses these events to update terminal state (is Claude running? is it waiting for permission?).
+1. **Notification** — a lightweight hook fires on session start/stop and permission requests, POSTs a single event to the web UI, and exits. The UI uses these to track terminal state (running? awaiting permission?).
+2. **Guard** — a mid-weight PreToolUse hook fires on every tool call and reads a mode file to decide its behavior: in default mode it catches command patterns that would trigger permission prompts and returns guidance; in away mode it additionally blocks tools that need prompts, enabling unattended runs behind a whitelist.
+3. **Sandbox enforcement** — a heavyweight hook gates every tool call during sandboxed work, checking paths against worktree boundaries and commands against an allowlist.
+4. **Advisory nudges** — a PostToolUse hook reminds a session to release the commit-lock after committing; a PermissionRequest hook auto-rejects prompts in away mode.
 
-2. **Guard** — A mid-weight hook (`raven-guard.js`) fires on every tool call as a PreToolUse handler. It reads a mode file to determine its behavior: in default mode, it catches common patterns that trigger permission prompts (command substitution, unnecessary cd chains, redundant venv activation) and returns guidance. In away mode, it additionally blocks tools that require permission prompts — enabling unattended operation with a whitelist of trusted commands.
-
-3. **Sandbox enforcement** — A heavyweight hook (`sandbox-hook.py`) intercepts every tool call during sandboxed work sessions. It checks file paths against worktree boundaries, commands against an allowlist, and file writes against anti-tamper patterns. Exit code 0 means allow, exit code 2 means deny with a reason.
-
-The hook system is the primary mechanism for integrating CC with external services without modifying CC itself.
+Exit codes are the API: 0 allows, nonzero blocks with a message surfaced to the agent so it can adapt. Behavior that needs to change at runtime (the guard's mode) lives in an external file the hook reads on each invocation, not in the hook itself.
 
 ## Notification System
 
-Agents can push notifications to the browser through an HTTP API (`/api/ui`). Two types exist:
+Agents push notifications to the browser through an HTTP endpoint. Two types, distinguished by durability:
 
-- **Modals** — persistent, stored in `notifications.json`, survive server restarts, require explicit user dismissal. Used for daily briefings, important alerts, or anything that shouldn't be missed.
-- **Toasts** — ephemeral, broadcast via WebSocket, disappear after a timeout. Used for status updates, confirmations, progress notes.
+- **Modals** — persistent, stored to disk, survive server restarts, require explicit dismissal. For briefings and alerts that must not be missed.
+- **Toasts** — ephemeral, WebSocket-broadcast, auto-dismissed. For status and confirmations.
 
-Both support markdown rendering. Pending (undismissed) modals are sent to new WebSocket clients on connect, so nothing gets lost if the browser reconnects. A CLI tool (`raven-ui modal/toast`) makes this callable from hooks, cron jobs, or other agents.
+Both render markdown. Undismissed modals are re-sent to a browser when it reconnects, so nothing is lost across a refresh. A CLI wrapper makes the whole thing callable from any context.
 
-## Scheduler and Overnight Pipeline
+## Scheduler and the Persistent Coordinator
 
-The server runs a cron scheduler (node-cron) that injects prompts into named terminals. Jobs are defined in `data/jobs.json` — a data file, not code — specifying a cron expression, a target terminal (matched by name prefix), and a prompt string. Complex instructions are externalized to markdown prompt files for readability.
+The server runs a cron scheduler that injects prompts into named terminals by writing directly to their PTYs. Jobs live in a JSON config — data, not code — specifying a cron expression, a target terminal (matched by name prefix), and a prompt; the file is watched so edits take effect without a restart.
 
-When a job fires, the scheduler finds the target terminal and writes the prompt directly to the PTY. The jobs file is watched with `fs.watch` — editing it takes effect immediately without a server restart.
+The standing target for scheduled work is **Munin**, a persistent Claude Code session that auto-launches with the server and auto-resumes its most recent session on restart (newest session UUID wins). Because a live coordinator session always exists, the scheduler can rely on having somewhere to inject prompts. This is what turns cron into agent automation — nightly consolidation, morning briefings, the overnight pipeline.
 
-The scheduler anchors an overnight pipeline that splits work between a local agent and a cloud agent. The local agent (constrained to safe operations by the guard) handles pre-fetching, committing, memory consolidation, and reviewing cloud results. A cloud-hosted Claude Code session (scheduled hourly via Anthropic's web UI) handles tasks requiring web access — one task per run, committed incrementally to a shared branch.
+## Overnight Pipeline
 
-The cloud agent follows a strict decision tree each run: execute a task, review a completed plan, decompose a heavy task, or exit. Heavy tasks are broken into plan files with narrow sub-tasks that span multiple runs. A nightly local job (night-pull) reviews the shared branch and merges to main — acting as a quality gate. Lock files coordinate between runs, with stale locks auto-retried rather than blocking permanently.
+The scheduler and the guard's away mode together enable unattended overnight operation, split across two agents because web access is the dangerous capability (untrusted content + tools + an exfiltration path). A **local** agent, constrained by the guard, does pre-fetching, committing, memory consolidation, and review. A **cloud** Claude Code session, scheduled hourly, handles web-access tasks — one per run, committed incrementally to a shared branch, following a strict decision tree (execute / review a plan / decompose a heavy task / exit). A nightly local night-pull reviews the branch and merges to main as a human-absent quality gate. The git repo is the coordination bus; lock files serialize runs and auto-retry stale locks rather than blocking forever.
+
+## Multi-Session Safety
+
+More than one agent session can share a single clone — and then they share one working tree, index, and HEAD. Concurrent `git add` cross-contaminates the staged index, and `git commit --amend` can rewrite whichever commit HEAD now points at. An advisory **commit-lock** serializes the stage→commit critical section: a session acquires the lock (keyed on its session id) before mutating git, and the guard hook blocks index/HEAD-mutating git verbs unless the caller holds it. Reads and `push` are never gated; the lock fails open so it can never brick the repo. Cross-machine coordination stays on push/pull, deliberately — the lock is intra-clone only.
 
 ## Knowledge Base
 
-A wiki-style knowledge store lives in `knowledge/` with an index, topic articles, and daily narrative entries. Topic articles use wikilinks (`[[topic-name]]`) for cross-referencing; backlinks are computed on request by scanning the file set.
+A wiki-style store lives in `knowledge/`: an index, topic articles, and dated daily narratives. Articles cross-reference with wikilinks; backlinks are computed on demand by scanning the file set, so there's no link database to maintain. A nightly consolidation skill acts as a librarian — it gathers the day's inputs and updates topic articles *in place* (living documents, not append-only logs), then writes a reflective daily narrative. Git holds the history.
 
-A nightly consolidation skill acts as librarian — gathering inputs from cloud agent reports, research documents, and the day's activity, then updating topic articles in place and writing a reflective daily narrative. Topics are living documents, not append-only logs. Git provides version history.
+Crucially, the store isn't trapped in one repo: a CLI reads and writes the wiki from *any* project's working directory, gated by a discovery sentinel and narrowly-scoped file allows, with an audit scanner enforcing the routing discipline. The web UI adds a wiki panel with search, wikilink navigation, and backlink display.
 
-The web UI provides a wiki panel with sidebar navigation, search, wikilink-based browsing, and backlink display.
+## Audio Narration
+
+A pipeline turns documents into listenable audio: markdown → strip markup → chunk → text-to-speech → a content-hashed cache → published audio files (single, or multi-part for long documents). The cache is keyed on the text itself, so unchanged content is never re-synthesized or re-billed. The canonical reader-panel entry is the spoken *source* document; the audio files are artifacts grouped under it. The working thesis: the rewrite-into-spoken-form step matters more than the engine choice.
 
 ## Service Registry
 
-Projects can register web services (dev servers, documentation previews, tool UIs) by adding a `server` field to their `projects.json` entry. The web UI auto-discovers registered services, pings each for liveness (HTTP HEAD, 500ms timeout), and displays them in the dashboard with green/gray status dots.
-
-Client-side host rewriting makes services accessible from any machine on the network: `localhost:5000` is automatically rewritten to use the current browser's hostname when accessed remotely. No proxy, no DNS — just URL rewriting in the browser.
+Projects register web services (dev servers, doc previews, tool UIs) by adding a `server` field to their registry entry. The web UI auto-discovers them, pings each for liveness (HTTP HEAD, short timeout), and shows status dots in the dashboard. For remote access, the browser rewrites a service's `localhost` host to the current page's hostname — no proxy, no DNS, just URL rewriting on the client.
 
 ## Skills as the Extension Mechanism
 
-Skills are markdown files that CC reads when invoked. A skill can reference supporting documents (in `references/`) and CLI tools (in `scripts/`). Skills are synced to CC's discovery path via filesystem junctions (symlinks on Unix) — the skill lives in the project repo for version control, but CC discovers it through its global skills directory.
-
-A sync registry (`sync-config.json`) tracks which skills sync where. A Python script creates the junctions. Skills are re-read on every invocation, so editing a SKILL.md takes effect immediately — no restart, no build step.
-
-Current skills cover: project status, session reflection and continuity, task management, document verification, security auditing, sandboxed autonomous work, tool call guardrails, paper reading, memory consolidation, knowledge echo generation, and skill development itself (a meta-skill that creates new skills).
+Skills are markdown files the agent reads when invoked, optionally with supporting docs (`references/`) and CLI tools (`scripts/`). They're synced to the agent's discovery path via filesystem junctions (symlinks on macOS) — the skill lives in the repo for version control, but the agent finds it through its global skills directory, and edits in either location are live immediately, with no build step. A sync registry tracks which skills sync where, including third-party skills cloned into a gitignored directory.
 
 ## Task System
 
-Tasks are markdown files — one per project — with a simple format: `- [ ] Task text #tags (deadline)`. A central Python CLI tool parses these, handles deadline logic (smart year defaulting, relative dates), and exposes operations (add, complete, edit, reorder, tag toggle) via subcommands. An inline tag system (`#next`, `#auto`, `#agent`) provides working-set selection, autonomous-work marking, and provenance tracking.
-
-A `projects.json` file at the repo root maps project names to filesystem paths, shorthands, and metadata. The task CLI reads this to resolve project references. The web UI provides a per-project task panel with inline editing, and an overview panel that shows urgency-grouped cards across all projects.
+Tasks are plain markdown lines — `- [ ] text #tags (deadline)` — greppable, hand-editable, and diffable, with no database. A central Python CLI is the single parser (deadline logic, project resolution); the web UI's per-project and cross-project overview panels call it via `--json`. Inline tags carry working-set selection and autonomous-work marking. The project registry maps shorthands to file paths so one CLI spans every project.
 
 ## Session Management
 
-Sessions are tracked through CC's own JSONL transcript files. A persistent name cache scans these files for custom titles (from `/rename` commands), using file modification times to avoid re-reading unchanged transcripts. This replaces an earlier index-based approach that was slower and less reliable.
-
-The sessions panel and API expose recent sessions with metadata (project, model, duration, message count) and support resuming by session UUID.
+Sessions are tracked through Claude Code's own JSONL transcript files. A persistent name cache scans them for custom titles, using file modification times to skip unchanged transcripts — this replaced an earlier index-based approach that was slower and more brittle. The sessions panel exposes recent sessions with metadata and supports resuming by UUID.
 
 ## Memory and Continuity
 
-CC provides auto-memory (`MEMORY.md` as an index, topic files for detail) which persists across conversations. Raven adds two session-continuity mechanisms:
+Claude Code provides auto-memory (an index file plus topic files) that persists across conversations. Raven adds a session save/restore cycle on top: **reflect** saves working state to a labeled file (`in_progress/<label>.md`) at session end — what's in progress, key decisions, files touched, next steps — and **continue** reads `in_progress/` at session start and offers to resume the most recent, or shows a digest to pick from. The label is a human-chosen stash key.
 
-1. **Reflect** — At session end, saves working state to `in_progress/[label].md`: what's in progress, key decisions, files touched, next steps. The label is user-chosen (suggested by the agent), making it a lightweight stash system.
+A consolidation skill periodically snapshots auto-memory, runs health diagnostics (dangling pointers, bloated index, unreachable files), and guides pruning — treating memory maintenance as a first-class operation.
 
-2. **Continue** — At session start, reads `in_progress/` and presents the most recent state, offering to resume. If nothing is recent, shows a digest of recent states for the user to pick from.
+## Threads
 
-This pair bridges the gap between CC sessions, where context resets on each start. The state files accumulate as a lightweight work log.
+The labeled files that reflect and continue read and write are **threads** — the work unit between a single task and a whole project (a refactor, a feature design, a paper revision). Threads are first-class: they have an overview CLI, a web UI panel, and a session-tracking layer that works across machines.
 
-A consolidation skill periodically snapshots auto-memory, runs health diagnostics (dangling pointers, bloated index, unreachable files), and guides pruning — treating memory maintenance as a first-class operation rather than an afterthought.
+Because one repo is often cloned on several machines, session bookkeeping is split into **per-machine sidecars** (`in_progress/machines/<clone>/<label>.md`) — one file per machine per thread. Each clone appends only to its own sidecar, so git never sees a conflict on session data while the thread file itself stays clean. Machine identity resolves through a checked-in hostname→friendly-name map, with a raw-hostname fallback for unregistered clones. The CLI gives a cross-project overview (threads, last activity, and session counts aggregated across every machine's sidecar), idempotent session-linking, and backfill that reconstructs history from past transcripts.
+
+## Native Desktop Shell
+
+A small Wails app (Go backend + system WebView) wraps the browser workspace as a native, multi-instance launcher. It spawns and stops *local* web-ui instances itself (running the Node server with a chosen port and streaming its startup log) and merely connects to *remote* instances over a VPN. Each instance is embedded in its own iframe, so switching between Ravens preserves each one's live session and terminal state. Process management is split per platform (separate Go files for Windows and Unix), because killing a spawned process tree differs across OSes.
+
+## Cross-Platform
+
+Raven started Windows-only and now also runs on macOS clones of the same repo. The large pieces port cleanly; the breakage is at the seams — in-place `sed` flags (BSD vs GNU), path separators, OS-conditional UI terminology, and machine identity. The hostname→name map is what lets git-tracked, per-machine state coexist across a mixed fleet.

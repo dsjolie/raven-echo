@@ -2,21 +2,27 @@
 
 ## Problem
 
-Some agent tasks should happen on a schedule — daily memory maintenance, morning briefings, periodic security audits, overnight research pipelines. Running separate cron jobs or systemd timers outside the agent's environment means maintaining another layer of infrastructure. What's needed is a way to trigger agent actions on a schedule using the same agent sessions that handle interactive work.
+Autonomous agent work needs time-based triggers — nightly maintenance, morning briefings, periodic security checks. The naive approach is external cron jobs or systemd timers that shell out to scripts. This works, but it creates a split system: infrastructure-level scheduling driving application-level agent sessions through a side channel. Every handoff between them is a seam where things break silently.
+
+The deeper issue is that scheduled work isn't fundamentally different from interactive work. Both are prompts delivered to an agent. If the agent's interactive and scheduled paths share no infrastructure, you're maintaining two separate pipelines to do the same thing.
 
 ## Approach
 
-The web UI server runs a cron scheduler (node-cron) that injects prompts directly into named terminal PTYs. Jobs are defined as data in a JSON config file — not code. When a job fires, the scheduler finds the target terminal by name prefix and writes the prompt string to the PTY as if a user had typed it.
+The web UI server owns the scheduler. On startup it loads a JSON file of job definitions and uses `node-cron` to register each one. When a job fires, it locates a named PTY terminal and writes the prompt string directly to it — the same write path that handles interactive keyboard input. The agent receives a scheduled prompt through exactly the same channel it receives user input.
 
-This reuses the existing terminal infrastructure. No separate daemon, no new communication channel. The agent receives the prompt through its normal input path and handles it like any other request.
+Two job types exist within the same config format. **Prompt jobs** identify a target terminal by name and inject a string into it. **Action jobs** call named functions registered inside the server process — for operations that belong to the server (like toggling security mode based on idle time) rather than to the agent.
 
-Two job types are supported: **prompt injection** (write a string to a terminal) and **server actions** (call a named function in the server process, e.g. auto-away detection). Both are configured in the same jobs file.
+The config file is data, not code. Adding, removing, or changing a schedule is a text editor operation. `fs.watch` makes changes take effect immediately without a server restart.
+
+### The persistent coordinator terminal
+
+The design depends on there being a live agent session to inject into. This is Munin: a terminal created automatically when the server starts, which runs the agent and resumes the most recent prior session. The resume target is read from a per-machine sidecar file — a small markdown file containing a list of past session UUIDs. The server picks the newest one by timestamp (not insertion order, since sidecar edits can arrive out of order) and passes it to the agent's `--resume` flag. If no sessions are recorded, the agent starts fresh.
+
+Munin is the standing target for scheduled prompt injection. It's always present when the server is running, it carries accumulated context from previous sessions, and it's the first tab created — pinned to position in the UI. Scheduled jobs specify `"terminal": "Munin"` and can count on finding it.
 
 ## Implementation
 
-### Job configuration
-
-Jobs live in a JSON file watched by the server:
+### Job config format
 
 ```json
 [
@@ -28,69 +34,101 @@ Jobs live in a JSON file watched by the server:
     "enabled": true
   },
   {
-    "id": "night-push",
-    "cron": "30 2 * * *",
+    "id": "memory-consolidate",
+    "cron": "0 4 * * *",
     "terminal": "Munin",
-    "prompt": "Read and follow the instructions in prompts/night-push.md",
+    "prompt": "/raven-consolidate",
     "enabled": true
   },
   {
     "id": "morning-briefing",
     "cron": "28 6 * * *",
     "terminal": "Munin",
-    "prompt": "Read and follow the instructions in prompts/morning-briefing.md",
+    "prompt": "Read and follow the instructions in web-ui/prompts/morning-briefing.md",
     "enabled": true
   }
 ]
 ```
 
-Each prompt job specifies a cron expression, a target terminal name (matched by prefix), and a prompt string. The prompt can be anything — a slash command, a reference to an instruction file, a natural language request. Complex prompts are externalized to markdown files for readability and version control.
+Each job has an `id`, a standard cron expression, and `enabled`. For prompt jobs: `terminal` (matched by name prefix) and `prompt` (the string injected). For action jobs: `action` (a key into the server's `serverActions` registry).
 
-Action jobs specify a named function instead of a terminal. Server-side actions run in Node.js (e.g. checking idle time and toggling guard mode).
+The prompt field accepts anything the agent understands: a slash command, a plain instruction, or a pointer to a prompt file stored in the repo. Externalizing complex instructions to prompt files keeps the config readable and makes the prompts independently version-controlled.
 
-### Terminal injection
+### Scheduler initialization
 
-When a prompt job fires:
-
-1. Find a terminal whose name starts with the target string
-2. Write the prompt to the PTY with a carriage return
+On server start, `loadJobs()` reads the file, stops any previously registered cron tasks, then iterates the job list:
 
 ```javascript
-const entry = [...terminals.getEntries()].find(
-  ([, e]) => e.name.startsWith(target)
-);
-if (!entry) return;  // terminal not found, skip
-terminals.write(id, job.prompt + '\r');
+for (const job of jobs) {
+  if (!job.enabled || !job.cron) continue;
+
+  if (job.action) {
+    const fn = serverActions[job.action];
+    if (!fn) { console.error(...); continue; }
+    const task = cron.schedule(job.cron, () => fn(job));
+    _cronTasks.push(task);
+  } else if (job.prompt) {
+    const task = cron.schedule(job.cron, () => {
+      const target = job.terminal || 'Munin';
+      const entry = [...terminals.getEntries()].find(
+        ([, e]) => e.name.startsWith(target)
+      );
+      if (!entry) return;
+      const [id] = entry;
+      terminals.write(id, job.prompt);
+      setTimeout(() => terminals.write(id, '\r'), 100);
+    });
+    _cronTasks.push(task);
+  }
+}
 ```
 
-The prompt is written unconditionally if the terminal exists. An earlier version gated on whether the agent was detected as "running" (`claudeRunning` flag), but this caused nightly jobs to silently skip when the agent was idle at its input prompt — technically not "running" from the detection system's perspective. The gate was removed: writing to a terminal where the agent is idle at its prompt is the correct behavior (the prompt becomes the agent's next input). Writing to a terminal with only a shell is unlikely in practice since the persistent agent session is always active.
+The prompt and carriage return are written in two separate calls with a 100ms delay. Writing them together caused the agent's TUI to interpret `\r` as a cursor-column-reset rather than submit, silently dropping the prompt. Separating the writes fixes this — confirmed via a log of prompt-submit events showing joined writes concatenating across injection cycles.
+
+### Server actions
+
+The `serverActions` map holds named functions for jobs that should run in the server process rather than in the agent. The current example is `auto-away`: it reads the guard mode file, checks how long since the last user interaction, and writes `away` to the guard file if the idle threshold is exceeded. This wakes up security restrictions without needing the agent to be active.
+
+This pattern generalizes: any server-level operation that doesn't require agent reasoning — file cleanup, status resets, external pings — can be registered here and fired by a cron expression using the same config format.
 
 ### Hot reload
 
-The server watches the jobs file with `fs.watch`. On change, it stops all existing cron tasks and reloads from disk. A 200ms debounce handles editors that write in multiple steps.
+```javascript
+fs.watch(JOBS_FILE, { persistent: false }, (eventType) => {
+  if (eventType === 'change') {
+    setTimeout(loadJobs, 200);
+  }
+});
+```
 
-This means editing the schedule doesn't require a server restart. Add a job, save the file, and it's registered within a second.
+The 200ms debounce prevents double-loads from editors that write files in two stages (truncate then write). The reload stops all current tasks before re-registering, so there's no risk of duplicate job instances after a config change.
 
 ### Nightly pipeline
 
-The scheduler anchors a multi-stage overnight pipeline:
+The scheduler anchors a multi-stage overnight pipeline. Local jobs bracket an external cloud agent that handles tasks requiring web access:
 
-| Time  | Job | What |
+| Time  | Job | What happens |
 |-------|-----|------|
-| 00-03 | auto-away (action) | Set away mode if user idle >40min |
-| 02:30 | night-push (prompt) | Pre-fetch JS-heavy URLs, commit+push safe work |
-| 03:00 | *cloud agent* | Remote trigger processes research tasks with web access |
-| 04:00 | consolidate (prompt) | Memory health check and compaction |
-| 05:00 | night-pull (prompt) | Pull cloud results, summarize new work |
-| 05:30 | security-audit (prompt) | Permission security audit |
-| 06:28 | morning-briefing (prompt) | Compose daily task briefing, send as modal notification |
+| 00:00–03:00 | auto-away (action) | Set away mode if idle >40 min |
+| 02:30 | night-push (prompt) | Pre-fetch JS-heavy pages, commit and push safe work |
+| 03:00 | *external cloud agent* | Processes `#auto` tagged tasks with web access, pushes results |
+| 04:00 | memory-consolidate (prompt) | Memory health check and compaction |
+| 05:00 | night-pull (prompt) | Pull cloud results, summarize new arrivals |
+| 05:30 | security-audit (prompt) | Permission audit |
+| 06:28 | morning-briefing (prompt) | Compose daily task briefing, deliver as a modal notification |
 
-The cloud agent (03:00) is external — a separate Anthropic-hosted trigger that clones the repo, processes `#auto` tagged tasks, and pushes results. The local jobs bracket it: night-push prepares work for the cloud, night-pull retrieves results.
+Night-push prepares work for the cloud agent; night-pull retrieves it. The cloud agent is entirely external — a separate hosted trigger that clones the repo, runs, and pushes back. The local scheduler only needs to know when to prepare and when to collect.
 
 ## Gotchas
 
-- **Name prefix matching.** The terminal is found by name prefix, not exact match. A job targeting "Munin" matches "Munin (raven-ui)" but also "Munin2" if it exists. Keep terminal names distinct.
-- **Prompt length.** The full prompt is written to the PTY as a single string. Very long prompts work but are harder to debug in terminal scrollback. Externalize complex instructions to prompt files.
-- **Timezone.** node-cron uses the server's system timezone. Daylight saving transitions can skip or double-fire jobs — avoid scheduling critical jobs during the transition hour (e.g. 02:00-03:00 in spring).
-- **No failure notification.** If the agent can't complete a scheduled task, the scheduler doesn't know. The morning briefing downstream catches most issues by reviewing what happened overnight.
-- **Server must be running.** Jobs only fire while the web UI server is up. Travel or connectivity issues mean missed jobs — but tasks carry forward to the next run.
+- **`\r` timing.** Write the prompt and the carriage return as two separate PTY writes with a short delay between them. A single concatenated write causes the terminal emulator to misinterpret `\r` as cursor movement instead of submit, silently dropping the prompt.
+
+- **Name prefix matching.** Terminals are located by `name.startsWith(target)`. A job targeting `"Munin"` will match `"Munin (coordinator)"` but also `"Munin2"` if it exists. Keep terminal names unambiguous.
+
+- **No execution guard.** The scheduler injects prompts unconditionally if the terminal exists. An earlier version skipped injection when the agent appeared "not running," but this caused jobs to silently miss when the agent was idle at its input prompt — the correct state to inject into. Removing the guard is the right behavior; the terminal being absent is the only legitimate skip condition.
+
+- **No feedback channel.** The scheduler fires and forgets. If the agent fails to complete a job — due to an error, context issues, or an unavailable tool — the scheduler doesn't know. Downstream jobs (particularly the morning briefing) serve as indirect feedback by reviewing what actually ran overnight.
+
+- **System timezone.** `node-cron` uses the Node.js process timezone, which follows the system clock. Daylight saving transitions can cause jobs to fire at the wrong wall-clock time or skip entirely. Avoid scheduling critical jobs in the transition window (typically 02:00–03:00).
+
+- **Server must be running.** All jobs depend on the web UI server being live. Missed runs don't auto-recover — but most agent tasks are inherently idempotent (consolidation, briefing generation) so the next scheduled run picks up cleanly.

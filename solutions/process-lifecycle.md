@@ -1,39 +1,45 @@
-# Process Tree Orphaning with npm
+# Process Tree Orphaning
 
 ## Problem
 
-Running the web UI server via `npm start` spawns a child `node` process. When you stop the npm process (e.g., via a task manager or Ctrl+C in some contexts), the child `node` process survives as an orphan, still holding the network port. The next startup fails with `EADDRINUSE`.
+A background server launched via a wrapper (e.g. `npm start`) survives attempts to stop it. Killing the wrapper exits cleanly, the port stays occupied, and the next launch fails with `EADDRINUSE`. The real server process is running invisibly — an orphan with no owner.
 
 ## Fix
 
-Run `node server.js` directly instead of `npm start`.
+Launch the long-lived process directly, bypassing the wrapper entirely.
 
 ```bash
-# Instead of:
-npm start
+# Wrapper launch — creates a two-process tree
+npm start        # npm (PID A) → node server.js (PID B)
 
-# Run directly:
-node server.js
+# Direct launch — one process, one PID
+node server.js   # node (PID A only)
 ```
 
-When running the server as a background task, this is especially important — killing the parent npm process leaves the actual server running invisibly.
+When a task manager or automated stop signal targets PID A, the direct launch guarantees the server actually stops.
 
 ## Why
 
-`npm start` creates a process tree: npm → node. On Windows (and some Unix configurations), killing the parent process doesn't automatically send a signal to all children. The npm wrapper is the parent; the actual server is a child process that npm spawns. When npm exits (cleanly or not), the child continues running.
+A wrapper launcher like `npm start` forks a child process to run the real command. On Windows (and some Unix configurations without explicit process-group signaling), killing a parent does not propagate to its children. The parent exits; the child inherits the port and keeps listening. The wrapper is ephemeral — the thing you wanted to manage — but what you actually killed was just the shell around it.
 
-Running `node server.js` directly means there's only one process. Killing it releases the port immediately.
+The fix removes the indirection. When the managed PID *is* the server PID, a stop signal reaches the actual process and the resource (port, file lock, socket) is released cleanly.
+
+This is a general principle for any long-lived managed process: avoid wrapper launchers that fork the real process. The PID you track must be the PID that owns the resource.
 
 ## Detection
 
-If you suspect an orphaned process is holding a port:
+If a port remains occupied after a stop:
 
 ```bash
-# Find what's using port 3000
-netstat -ano | grep 3000    # Windows/Git Bash
-lsof -i :3000               # macOS/Linux
+# Find the process holding the port (Windows/Git Bash)
+netstat -ano | grep 3000
 
-# Kill by PID
-taskkill /PID <pid> /F       # Windows
-kill <pid>                   # Unix
+# Kill it directly
+taskkill /PID <pid> /F
 ```
+
+The surviving PID will belong to the server process, not the wrapper — confirming the wrapper exited but the child did not.
+
+## Generalization
+
+The same failure mode appears anywhere a long-lived process is started through a launcher that does not forward signals or manage its own process group: shell wrapper scripts, `npx`, language runtimes that exec a child, and some systemd `ExecStart` configurations. The diagnostic is always the same: check which PID actually owns the resource, and verify that stopping the launcher reaches that PID. If it doesn't, move up one level — launch the real process directly, or use a process manager that explicitly tracks and signals the full process tree.

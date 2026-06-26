@@ -41,7 +41,7 @@ The format has four intentional properties:
 
 1. **Checkbox lines are the only structured data.** Everything else — headers, prose sections, comments — is noise-tolerant. The parser skips non-checkbox lines.
 2. **Deadlines are parenthesized at the end.** This makes them visually distinct and easy to strip when displaying task text. Accepted forms: ISO dates (`2026-04-15`), month + day (`Apr 15`), month + year (`March 2026`), and vague qualifiers (`Early March 2026` → day 10, `Late March 2026` → day 25).
-3. **Tags are inline hashtags.** `#next` marks working-set tasks for today. `#auto` marks tasks eligible for autonomous overnight work. `#agent` is convention for tasks added by an agent rather than the user. Tags survive edits — the CLI preserves them when rewriting task lines.
+3. **Tags are inline hashtags.** `#next` marks working-set tasks for today. `#auto` marks tasks eligible for autonomous overnight work. `#agent` marks a *consideration* — an item the agent filed, not work the human committed to — which is structurally separated from the committed task list (see Considerations below). Tags survive edits — the CLI preserves them when rewriting task lines.
 4. **The `✓` on completed lines is additive, not structural.** The checkbox state `[x]` is the parse signal; the tick is decoration.
 
 ### Project registry
@@ -60,6 +60,10 @@ Project-local takes precedence. If both exist, the CLI emits a conflict warning 
 ### Inbox
 
 `inbox.md` is a flat capture buffer — task ideas that aren't ready to route. Items can carry `@shorthand` tags as a routing hint. The workflow is capture-first, route-later: `rtasks inbox add "Thing I should do"`, then `rtasks inbox move 0 myproject` when you have context to assign it.
+
+### Considerations
+
+Once an agent runs unattended and files suggestions of its own, a second class of item appears: the **consideration** — an `#agent`-tagged line with no lane and no deadline. These are computed as a distinct set from the committed tasks and deliberately *excluded* from the "untriaged" count, so the agent's firehose never crowds the human's real backlog. Each consideration's category tag routes it to a handler that does the work, and a `promote` command strips `#agent` to graduate one into committed work. The mechanics — category→handler routing, the trust bar, the convergence model — are their own pattern: [considerations-and-handlers.md](considerations-and-handlers.md). The point here is only that the *same task file and the same parser* carry both human tasks and agent considerations; the split is a derived view, not a separate store.
 
 ## Implementation
 

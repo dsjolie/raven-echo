@@ -115,6 +115,16 @@ Skills are markdown files the agent reads when invoked, optionally with supporti
 
 Tasks are plain markdown lines — `- [ ] text #tags (deadline)` — greppable, hand-editable, and diffable, with no database. A central Python CLI is the single parser (deadline logic, project resolution); the web UI's per-project and cross-project overview panels call it via `--json`. Inline tags carry working-set selection and autonomous-work marking. The project registry maps shorthands to file paths so one CLI spans every project.
 
+## Considerations and the Project Focus Cockpit
+
+Once agents run unattended, they file suggestions of their own — and they file them faster than a human drains them. To keep the agent's firehose from drowning the human's backlog, agent-filed items (`#agent`, no lane, no deadline) are reclassified as **considerations**: a derived set, computed by the same parser from the same task file, but deliberately excluded from the human "to triage" count. Each consideration's category tag routes it to a **handler** — the procedure that actually does the work (a safe in-place edit, an adversarial citation verification, or "surface this to a human"). A handler runs autonomously only if it can do its verb with inspectable evidence and surface on doubt; everything else routes to a person. Every action appends to a log that doubles as the UI's review surface.
+
+The project's Tasks panel became a **Project Focus** cockpit on top of this: sub-views for committed Tasks, the Considerations pile (grouped into human buckets — needs-you, agent-will-handle, uncategorised — with promote/dismiss per item), and Review (the handler action log, each row carrying a copyable revert command, because the UI itself never runs git). Pending human decisions are *not* buried behind a tab — they sit as a callout in the primary view, because a hidden decision is still a human to-do you're lying to yourself about.
+
+## Task Discussions
+
+Backlog items lose their context faster than their content. A per-item "Discuss" button spawns a fresh, context-primed agent session in a modal that — before the human types — reconstructs when and why the item was filed (git-blame), what it points at, and whether its premise still holds. The conversation is scoped to one item, ephemeral (its own lightweight file-based pile, not a thread), and lands on a concrete disposition. The modal is backed by a real PTY terminal; an Elevate action re-homes it into a normal terminal tab without killing the session when a quick discussion turns into real work. This works because the client event bus is multi-subscriber, so a modal and a tab can share one session's output stream.
+
 ## Session Management
 
 Sessions are tracked through Claude Code's own JSONL transcript files. A persistent name cache scans them for custom titles, using file modification times to skip unchanged transcripts — this replaced an earlier index-based approach that was slower and more brittle. The sessions panel exposes recent sessions with metadata and supports resuming by UUID.
@@ -137,4 +147,4 @@ A small Wails app (Go backend + system WebView) wraps the browser workspace as a
 
 ## Cross-Platform
 
-Raven started Windows-only and now also runs on macOS clones of the same repo. The large pieces port cleanly; the breakage is at the seams — in-place `sed` flags (BSD vs GNU), path separators, OS-conditional UI terminology, and machine identity. The hostname→name map is what lets git-tracked, per-machine state coexist across a mixed fleet.
+Raven started Windows-only and now also runs on macOS and a headless Linux node — several clones of one repo across a small fleet. The large pieces port cleanly; the breakage is at the seams — in-place `sed` flags (BSD vs GNU), path separators, OS-conditional UI terminology, and machine identity. The hostname→name map is what lets git-tracked, per-machine state coexist across a mixed fleet. On the always-on Linux node the web UI runs as a user service and binds only to loopback and the machine's own auto-detected VPN address — never the public interface — so a shared instance is reachable from the other machines without being exposed. The fleet coordinates only through git push/pull; there's no machine-to-machine RPC.

@@ -48,6 +48,8 @@ Reusable approaches that generalize beyond this specific project.
 - [patterns/scheduler.md](patterns/scheduler.md) — Server-side cron with prompt injection into a persistent agent terminal
 - [patterns/overnight-pipeline.md](patterns/overnight-pipeline.md) — Local-cloud split for unattended research, with plan decomposition and review gates
 - [patterns/task-system.md](patterns/task-system.md) — Cross-project task management with markdown files, urgency grouping, and autonomous-task tagging
+- [patterns/considerations-and-handlers.md](patterns/considerations-and-handlers.md) — Keeping an agent's own filed suggestions from drowning the human backlog: a separate pile, routed by category to handlers that act on inspectable evidence or surface on doubt
+- [patterns/task-discussions.md](patterns/task-discussions.md) — A per-item "Discuss" button that spawns a context-primed agent session to re-load a stale backlog item's forgotten context before you decide
 - [patterns/knowledge-base.md](patterns/knowledge-base.md) — Wiki-style knowledge store with wikilinks, nightly consolidation, and cross-project access
 - [patterns/service-registry.md](patterns/service-registry.md) — Declarative service registration with liveness pinging and host rewriting for remote access
 - [patterns/audio-pipeline.md](patterns/audio-pipeline.md) — Document-to-speech where the rewrite step matters more than the engine, with content-hashed caching

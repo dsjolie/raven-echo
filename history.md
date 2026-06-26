@@ -84,16 +84,32 @@ A small Wails app (Go + system WebView) wrapped the browser workspace as a nativ
 
 What started Windows-only grew a second home on macOS. The skill-sync mechanism already handled symlinks alongside junctions; the June work filled in the smaller seams where portability actually breaks — BSD vs GNU `sed -i` flags, OS-conditional UI labels (Finder vs Explorer), and the multi-machine identity map that keeps per-clone state files from colliding.
 
-## Current State (Jun 6, 2026)
+## The Fleet Grows a Server (mid-Jun)
 
-About four months from first commit. The system now has:
+The mixed-OS fleet gained an always-on Linux node. The web UI became a user-level system service there, and an important security posture got nailed down: bind only to loopback and the machine's *own* auto-detected VPN address, never the public interface, so a shared instance is reachable across the fleet without being exposed to the internet. An earlier version had hardcoded one machine's VPN IP as a fleet-wide default — a small mistake that became a principle: machine-specific values must be auto-detected per host, never baked in as defaults. The fleet still coordinates purely through git push/pull; there is deliberately no machine-to-machine RPC.
 
-- **Around twenty skills** — status, reflection, continuity, threads, task and inbox management, claim/reference verification, security auditing, sandboxed work, paper reading, memory consolidation, knowledge wiki access, audio narration, knowledge-echo generation, tool guardrails, away mode, commit-locking, and skill development itself.
-- **A panel-based web UI** spanning terminal, tasks, overview, sessions, status, memory, wiki, reader, and settings — usable from desktop, mobile, and a native desktop shell.
+## The Considerations Cockpit (Jun 26)
+
+The overnight pipeline had been quietly creating a problem of its own. The nightly rumination pass files suggestions — drift fixes, citation checks, cleanups — at 3–4 a night, and they had accumulated until roughly 78% of the task list was agent-filed noise burying the dozen items the human actually owned. The fix was a two-part design, stress-tested by a multi-persona review panel before building: **separate the pile** (agent-filed items become *considerations*, computed as a distinct set and excluded from the human's triage count) and **route each by category to a handler** that does the actual work — a safe in-place edit, an adversarial citation verification, or "surface this to a person."
+
+The load-bearing correction came during the build. The first cut said "verification is dangerous, always route it to a human." Proven wrong by running it: an adversarial verification handler resolved most flagged citations autonomously (confirming real papers, fixing one truncated title) and surfaced only the genuinely unsourced one — catching a confabulation. The real line isn't "don't act on uncertain categories," it's *do the verb with inspectable evidence, surface on doubt*. The review panel forced a second correction too: pending human decisions don't get buried behind a tab — a hidden decision is still a to-do you're lying to yourself about — so they sit as a callout in the primary view. The Tasks panel became a **Project Focus** cockpit: committed tasks, the considerations pile, and a review surface where every autonomous edit shows up with a one-command revert.
+
+## Task Discussions (Jun 26)
+
+The same day, a sibling feature addressed the *other* end of the backlog problem: items that rot because their context is forgotten, not because they're hard. A per-item "Discuss" button spawns a fresh agent session, primed to reconstruct — before the human types — when and why the item was filed, what it points at, and whether its premise still holds. It opens with a reorientation rather than a question, stays scoped to the one item, and lands on a concrete disposition. The session runs in a terminal-backed modal that can be *elevated* into a full terminal tab without losing state when a quick chat turns into real work — a clean move only because the modal was a real terminal all along, and the client event bus already fanned out to multiple subscribers.
+
+## Current State (Jun 26, 2026)
+
+Not quite five months from first commit. The system now has:
+
+- **Around two dozen skills** — status, reflection, continuity, threads, task and inbox management, claim/reference verification, security auditing, sandboxed work, paper reading, memory consolidation, knowledge wiki access, audio narration, knowledge-echo generation, tool guardrails, away mode, commit-locking, considerations-convergence, task discussions, and skill development itself.
+- **A panel-based web UI** spanning terminal, a Project Focus cockpit (tasks, considerations, review), overview, sessions, status, memory, wiki, reader, and settings — usable from desktop, mobile, and a native desktop shell.
+- **A considerations-and-handlers loop** that keeps the agent's own filed suggestions from drowning the human backlog — routing each to a handler that does the verb with inspectable evidence, or surfaces on doubt.
 - **A notification and scheduling system** plus a persistent coordinator session for proactive, scheduled agent behavior.
 - **An overnight local-cloud pipeline** for unattended research, memory maintenance, and security auditing.
 - **A wiki knowledge base** reachable from every tracked project, with nightly librarian-style consolidation and reflective daily narratives.
+- **A mixed-OS fleet** — Windows and macOS clones plus an always-on Linux node running the web UI as a VPN-only service, coordinating purely through git.
 - **Research papers** on agent memory and on assessment design, both spun out of the day-to-day work.
 - **This echo repo**, regenerated periodically from the private codebase.
 
-Active fronts include incremental memory-architecture work, the assessment and memory papers, cross-platform hardening, and continued refinement of the overnight pipeline.
+Active fronts include incremental memory-architecture work, draining and converging the considerations pile, the assessment and memory papers, and continued refinement of the overnight pipeline.

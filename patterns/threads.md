@@ -66,6 +66,19 @@ Threads that predate the sidecar mechanism have no recorded history. Backfill re
 
 Sidecars store full session UUIDs (the overview may show short prefixes, but resuming requires the whole UUID). To resume a thread on a given machine, read *that machine's* sidecar, pick a session from its `## Sessions` block, and resume it — only sessions recorded on the current machine are resumable there.
 
+### Long-running threads: the head/log split
+
+Most threads live for days or weeks and then close. A *coordinator* thread — the standing state file of a persistent, scheduled agent session — never closes, and grows by appended increments until it outgrows what a reader can take in one pass (in our runtime, the agent's file-read tool caps out around 25K tokens). Past that point the file stops functioning as working state: resuming means reading a novel, and the operational facts are scattered through months of narrative.
+
+The fix separates the two things such a file was conflating:
+
+- **Head** — operational state that is *maintained in place*: `## Standing carries`, `## Open decisions`. Always at the top, never archived, single source of truth. Editing it is deliberate, like editing the thread body of any other thread.
+- **Increment log** — dated, append-only entries, delimited by HTML-comment fences (`<!-- increments:start -->` / `<!-- increments:end -->`). This is the part that grows without bound.
+
+An `archive` subcommand rolls the oldest increments out to `archive/threads/<label>.md` when the file exceeds a character budget (characters as a cheap proxy for tokens, ~4 chars each): roll oldest-first until under a target size, but never below a minimum number of retained increments, so recent context always survives. The command is **self-deciding and idempotent** — a no-op below the threshold — which is the property that makes it usable: the end-of-session routine calls it unconditionally on every run instead of anyone having to decide when archiving is due.
+
+If the file is over budget but has no fences, the tool warns and refuses to roll rather than guessing at structure from headings — the file needs restructuring, and a heuristic roll that guessed wrong would silently destroy operational state.
+
 ## Gotchas
 
 - **Per-machine sidecars are the whole design — don't merge them back.** The instinct to keep session history "in one place" inside the thread file is exactly what created git conflicts. One file per writer is the fix; resist re-centralizing it.
@@ -77,6 +90,8 @@ Sidecars store full session UUIDs (the overview may show short prefixes, but res
 - **Backfill is best-effort and labels itself as such.** A reconstructed entry marked `_backfill_` is honestly distinguishable from a summary the agent actually wrote — better than fabricating a confident summary from a transcript scan.
 
 - **Threads accumulate; that's intended.** They aren't auto-pruned. The growing set of `in_progress/<label>.md` files is a lightweight, human-scannable work log — closing a thread is a deliberate act (archive or delete), not a side effect.
+
+- **Size limits arrive before you expect them.** Any append-only state file read by an agent will eventually exceed the agent's read window. Plan the head/log split before a coordinator-style thread hits the wall — retrofitting fences into a 90K-character narrative is exactly the kind of restructuring nobody wants to do under pressure.
 
 ---
 

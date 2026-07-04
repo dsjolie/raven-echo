@@ -71,6 +71,25 @@ The `--clean` flag removes stale junctions — links that once existed in the co
 
 Path resolution is done relative to the script's own location (`Path(__file__).resolve().parent.parent.parent.parent`), so no absolute paths are hardcoded. The script works correctly after a repo clone to a new machine or path.
 
+## Auditing Reach: Skills Accrete Blast Radius
+
+A skill library accumulates scripts, and scripts quietly accumulate *reach*. An audit of the 26 scripts in this system's library found 11 with effects outside the project they run in: five writing to the agent's global configuration directory, three writing into *other* projects' working trees via the project registry, two writing to hardcoded absolute paths regardless of where they were invoked, and one intentionally cross-project surface (the shared knowledge wiki). None malicious, most intentional — but several were **implicit**: nothing at the call site indicated that invoking the script from one project would touch files in every other.
+
+Classifying by blast radius made the audit tractable:
+
+1. **Global write** — mutates state shared by every agent session on the machine (global config, mode files, the global skills directory).
+2. **Cross-project write** — writes into another project's working tree, resolved via the registry.
+3. **Hardcoded-path write** — writes to a fixed absolute path; machine-bound and silently wrong after a repo move.
+4. **Cross-project read** — reads broadly but writes only locally; worth knowing, lower risk class.
+
+Three rules fell out of the audit:
+
+- **Cross-project writes must be explicit, never the silent default.** Either the target is named as an argument (`tool add otherproject "..."`) or the cross-project sweep is opt-in behind a flag (`--all`), symmetric with how the read-side commands already behave. The worst offender was a backfill command that, invoked from any project, wrote reconstruction entries into *every* project's state files — correct behavior, invisible surface.
+- **Scripts that own a region of shared global config must say so in their skill's documentation.** Several sync scripts each maintain a fenced, sentinel-marked block in the agent's global instruction file. That's a fine mechanism — but which script owns which markers was tribal knowledge until the audit wrote it down.
+- **Derive repo paths from the script's own location, never hardcode.** `Path(__file__).resolve().parent...` survives clones, moves, and other machines; a hardcoded root fails all three, and fails them silently in unattended runs.
+
+The audit itself is cheap — one grep pass for telltale patterns (`Path.home()`, `~/`, `expanduser`, registry lookups, absolute roots), then a targeted read of the matches to separate external *read* from external *write*. Worth repeating whenever the library has grown by a handful of scripts.
+
 ## Gotchas
 
 **Discovery is session-scoped, not file-scoped.** The agent scans its skills directory at session start. A newly junctioned skill won't be available by name until the session is restarted. This is a Claude Code constraint, not a design choice. A workaround: the agent can read a SKILL.md directly with its path even before the skill is formally discovered — useful when bootstrapping.

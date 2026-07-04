@@ -98,9 +98,17 @@ The load-bearing correction came during the build. The first cut said "verificat
 
 The same day, a sibling feature addressed the *other* end of the backlog problem: items that rot because their context is forgotten, not because they're hard. A per-item "Discuss" button spawns a fresh agent session, primed to reconstruct — before the human types — when and why the item was filed, what it points at, and whether its premise still holds. It opens with a reorientation rather than a question, stays scoped to the one item, and lands on a concrete disposition. The session runs in a terminal-backed modal that can be *elevated* into a full terminal tab without losing state when a quick chat turns into real work — a clean move only because the modal was a real terminal all along, and the client event bus already fanned out to multiple subscribers.
 
-## Current State (Jun 26, 2026)
+## The System Writes Its Own Paper (Jun 27 – Jul 4)
 
-Not quite five months from first commit. The system now has:
+Five months in, Raven drafted an academic paper about itself — an experience report with the human and the system as co-authors. The method was the reading principle applied reflexively: careful-reader subagents worked through the project's own design corpus and returned verbatim excerpts, so every quote in the paper traces to a logged read of the actual document. A second draft grounded every claim in measured repository statistics (over a thousand commits, hundreds of recorded sessions, dozens of daily narratives) rather than remembered impressions. An external review by an unrelated frontier model corroborated the paper's most self-critical section rather than its most flattering one.
+
+The fourth draft delivered a genuine conceptual shift. The paper had opened as a defense of the founding bet — durable layers (memory, skills, discipline) over a commodity runtime. Writing honestly about five months of evidence forced a reframe: the runtime *absorbed* the layer's cleverest memory mechanism before it shipped, and even the memory data came to rest in the runtime's managed directory. What survives isn't any layer; it's the **synchronized environment** — the shared, file-based state that person, agent, and a moving runtime continuously calibrate against each other — and the durable work is the calibration itself. The paper keeps a standing section arguing *against* its own thesis where the evidence demands it.
+
+This repo gained a `sources/` directory in the same stroke: verbatim, point-in-time snapshots of the private design documents the paper quotes, so its citations resolve publicly. Paper and echo now complement each other — the paper is the argued, versioned account; the echo is the living tour.
+
+## Current State (Jul 4, 2026)
+
+Five months from first commit. The system now has:
 
 - **Around two dozen skills** — status, reflection, continuity, threads, task and inbox management, claim/reference verification, security auditing, sandboxed work, paper reading, memory consolidation, knowledge wiki access, audio narration, knowledge-echo generation, tool guardrails, away mode, commit-locking, considerations-convergence, task discussions, and skill development itself.
 - **A panel-based web UI** spanning terminal, a Project Focus cockpit (tasks, considerations, review), overview, sessions, status, memory, wiki, reader, and settings — usable from desktop, mobile, and a native desktop shell.
@@ -109,7 +117,7 @@ Not quite five months from first commit. The system now has:
 - **An overnight local-cloud pipeline** for unattended research, memory maintenance, and security auditing.
 - **A wiki knowledge base** reachable from every tracked project, with nightly librarian-style consolidation and reflective daily narratives.
 - **A mixed-OS fleet** — Windows and macOS clones plus an always-on Linux node running the web UI as a VPN-only service, coordinating purely through git.
-- **Research papers** on agent memory and on assessment design, both spun out of the day-to-day work.
-- **This echo repo**, regenerated periodically from the private codebase.
+- **Research papers** on agent memory, on assessment design, and — reflexively — on the system itself, all spun out of the day-to-day work.
+- **This echo repo**, regenerated periodically from the private codebase, now carrying the paper's public source snapshots alongside the generated docs.
 
-Active fronts include incremental memory-architecture work, draining and converging the considerations pile, the assessment and memory papers, and continued refinement of the overnight pipeline.
+Active fronts include the system paper's revision loop, draining and converging the considerations pile, the assessment and memory papers, incremental memory-architecture work, and continued refinement of the overnight pipeline.

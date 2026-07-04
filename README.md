@@ -64,6 +64,7 @@ Specific edge-case fixes and workarounds — problems that took real debugging t
 - [solutions/venv-node-integration.md](solutions/venv-node-integration.md) — Pinning the Python interpreter and its output encoding when called from Node.js
 - [solutions/claude-detection.md](solutions/claude-detection.md) — Detecting when an AI agent is running in a terminal
 - [solutions/process-lifecycle.md](solutions/process-lifecycle.md) — Orphaned child processes when stopping a wrapper launcher
+- [solutions/silent-bind-degradation.md](solutions/silent-bind-degradation.md) — A "best-effort" secondary bind that silently degrades on a restart race; retry what you understand, crash on what you don't
 - [solutions/pwd-p4-leak.md](solutions/pwd-p4-leak.md) — An inherited `PWD` env var that overrides a tool's real working directory
 - [solutions/dropbox-file-locking.md](solutions/dropbox-file-locking.md) — Build failures and temp-file debris from cloud-sync file locks
 - [solutions/windows-shell-quirks.md](solutions/windows-shell-quirks.md) — Encoding, paths, and shell compatibility on Windows
@@ -75,6 +76,10 @@ Specific edge-case fixes and workarounds — problems that took real debugging t
 Self-contained, reusable scripts copied verbatim from the project.
 
 - [scripts/](scripts/) — Guard hook, notification hook, sandbox hook, commit-lock CLI, permission profiles
+
+### Paper Sources
+
+- [sources/](sources/) — Verbatim, point-in-time snapshots of the private design documents quoted in *"Raven: A Synchronized Environment over a Moving Agent Runtime"*, an academic experience report the system co-wrote about itself. They're here so the paper's citations resolve publicly. The paper is the argued, versioned account; this echo is the living tour — see [sources/README.md](sources/README.md) for the inventory and the two marked deviations from verbatim.
 
 ## How to Use This
 

@@ -41,6 +41,8 @@ Reusable approaches that generalize beyond this specific project.
 - [patterns/cli-as-api.md](patterns/cli-as-api.md) — CLI tools as the implementation layer, called from Node.js with `--json`
 - [patterns/session-continuity.md](patterns/session-continuity.md) — A save-at-end / restore-at-start stash cycle for working state across agent sessions
 - [patterns/threads.md](patterns/threads.md) — The work unit between a task and a project, tracked across sessions and machines via per-machine sidecars
+- [patterns/thread-routing.md](patterns/thread-routing.md) — Threads as routing targets for cron jobs and cross-machine messages: files carry content, injection carries doorbells, events are requests not authorizations
+- [patterns/machine-fleet.md](patterns/machine-fleet.md) — A git-tracked machine registry, channels chosen by what's moving, and backend switching via a port-per-machine reverse proxy
 - [patterns/spec-driven-sandbox.md](patterns/spec-driven-sandbox.md) — Sandboxing autonomous agents with hook-enforced permission boundaries
 - [patterns/guard-system.md](patterns/guard-system.md) — Mode-based tool-call guardrails via a PreToolUse hook
 - [patterns/gitlock.md](patterns/gitlock.md) — An advisory commit-lock for multiple agent sessions sharing one git clone
@@ -53,6 +55,8 @@ Reusable approaches that generalize beyond this specific project.
 - [patterns/knowledge-base.md](patterns/knowledge-base.md) — Wiki-style knowledge store with wikilinks, nightly consolidation, and cross-project access
 - [patterns/service-registry.md](patterns/service-registry.md) — Declarative service registration with liveness pinging and host rewriting for remote access
 - [patterns/audio-pipeline.md](patterns/audio-pipeline.md) — Document-to-speech where the rewrite step matters more than the engine, with content-hashed caching
+- [patterns/figure-generation.md](patterns/figure-generation.md) — Paper figures from an agent session: SVG code for structure, structured JSON captions for pictures — the caption, not the image, is the artifact under iteration
+- [patterns/interactive-artefacts.md](patterns/interactive-artefacts.md) — HTML reports that collect their own review: choice widgets and comments persisting to sidecars, plus live JSONL worklogs that freeze into commentable reports
 - [patterns/desktop-launcher.md](patterns/desktop-launcher.md) — A native Wails shell that manages multiple local and remote web-app instances
 - [patterns/echo-generation.md](patterns/echo-generation.md) — Auto-generating shareable knowledge extracts from a private repo
 
@@ -70,6 +74,7 @@ Specific edge-case fixes and workarounds — problems that took real debugging t
 - [solutions/windows-shell-quirks.md](solutions/windows-shell-quirks.md) — Encoding, paths, and shell compatibility on Windows
 - [solutions/cross-platform.md](solutions/cross-platform.md) — Portability seams between Windows and macOS clones of one repo
 - [solutions/xterm-upgrade.md](solutions/xterm-upgrade.md) — Migrating from xterm.js 5.x to 6.x without breaking scrolling
+- [solutions/offline-first-model-serving.md](solutions/offline-first-model-serving.md) — Fully cached model weights, dead server: an expired auth token in an online validation probe, and why local serving must never depend on network validation
 
 ### Scripts
 

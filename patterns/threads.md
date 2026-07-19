@@ -95,4 +95,4 @@ If the file is over budget but has no fences, the tool warns and refuses to roll
 
 ---
 
-Threads are *written and restored* by the reflect/restore cycle — see [session-continuity.md](session-continuity.md) for that loop. This document is about the durable unit itself and how it's tracked across sessions, machines, and projects.
+Threads are *written and restored* by the reflect/restore cycle — see [session-continuity.md](session-continuity.md) for that loop. They are also the fleet's *routing target*: scheduled jobs and cross-machine events address a thread, not a session or a tab — see [thread-routing.md](thread-routing.md). This document is about the durable unit itself and how it's tracked across sessions, machines, and projects.

@@ -106,9 +106,25 @@ The fourth draft delivered a genuine conceptual shift. The paper had opened as a
 
 This repo gained a `sources/` directory in the same stroke: verbatim, point-in-time snapshots of the private design documents the paper quotes, so its citations resolve publicly. Paper and echo now complement each other — the paper is the argued, versioned account; the echo is the living tour.
 
-## Current State (Jul 4, 2026)
+## Reports That Answer Back (Jul 8–14)
 
-Five months from first commit. The system now has:
+Agent-written HTML reports had always been one-way: read in the browser, feedback retyped into chat, context lost in transit. An interactivity layer closed the loop — choice widgets and comment affordances on the reports themselves, persisting to a sidecar file beside each artifact, with an explicit Submit bundling a review into a single consideration for the handler loop built in June. The design document for the feature was itself the first interactive artifact, and the first real review traveled the full pipeline: widgets → sidecar → consideration → applied edits. A second phase added **worklogs** — long tasks append JSONL events that a generic viewer renders live, and a finished worklog freezes into a report that inherits the comment layer. Server-side script injection plus auto-anchored headings made the entire report back-catalogue commentable without regenerating a single file.
+
+## Threads Become Addresses (Jul 14–15)
+
+Scheduled jobs had always targeted a terminal by name — brittle the moment tabs churned, and useless for work that hadn't started yet. A design round settled it: the *thread* (the durable work unit from April) becomes the routing target. Terminals carry a thread property, cron jobs launch fresh sessions on a thread (skipping if one is live), and a single event endpoint lets any process — or any machine — message a thread: append to a durable per-thread log, ring a doorbell if a session is live. The organizing principle: **files carry content, injection carries doorbells.** The nightly pipeline moved out of the standing coordinator into its own nightly thread; the coordinator's role narrowed to verifying the night's work each morning and closing the tab. Within days the event lane carried its first real cross-machine conversation — a debugging round trip between two machines — and field use hardened it: doorbell paths went absolute after a recipient in a different working directory concluded an event didn't exist, and a convention was written down that events are *requests, not authorizations*.
+
+## The Fleet Becomes Real (Jul 15)
+
+The machine roster graduated from a hostname-alias map to a full **registry** — platform, role, VPN address, availability windows, capabilities, and a reserved proxy port per machine — and backend switching shipped the same day: every server reverse-proxies every other machine's UI on that machine's globally unique port, so *port = machine, from anywhere*, and links compose correctly even through an already-switched view. Proxied clients get their mutations blocked server-side (an edit made while viewing another machine would land in the wrong working tree) and a badge naming the backend. The whole thing rolled out fleet-wide in one day, including switching from a phone. June's "deliberately no machine-to-machine RPC" posture ended here — narrowly: the fleet's control plane is doorbells and liveness pings over the VPN, while content still rides git.
+
+## The System Draws Its Own Figures (Jul 15–19)
+
+A second GPU service joined the self-hosted roster: an open-weight, caption-trained image model on a fleet machine's spare GPU, VPN-bound like the TTS server but **load-on-demand** — the host has a day job, so the model unloads after idle minutes, and a lease endpoint keeps it warm through iteration loops. Three days later a figure-generation skill turned it into a paper tool, collapsing a published multi-agent architecture into phases of one session with two lanes: SVG code for structural diagrams, structured JSON captions for pictorial figures — where the caption, not the image, is the artifact under iteration, and a fixed seed makes surgical caption edits approximately structure-preserving. Both lanes shipped real figures into real papers within a day of the skill existing. The service also produced this period's hardest-won lesson: an expired auth token killed cold loads despite fully cached weights, because the loader validated online before reading disk — serving is offline-first now.
+
+## Current State (Jul 19, 2026)
+
+Five and a half months from first commit. The system now has:
 
 - **Around two dozen skills** — status, reflection, continuity, threads, task and inbox management, claim/reference verification, security auditing, sandboxed work, paper reading, memory consolidation, knowledge wiki access, audio narration, knowledge-echo generation, tool guardrails, away mode, commit-locking, considerations-convergence, task discussions, and skill development itself.
 - **A panel-based web UI** spanning terminal, a Project Focus cockpit (tasks, considerations, review), overview, sessions, status, memory, wiki, reader, and settings — usable from desktop, mobile, and a native desktop shell.
@@ -116,8 +132,10 @@ Five months from first commit. The system now has:
 - **A notification and scheduling system** plus a persistent coordinator session for proactive, scheduled agent behavior.
 - **An overnight local-cloud pipeline** for unattended research, memory maintenance, and security auditing.
 - **A wiki knowledge base** reachable from every tracked project, with nightly librarian-style consolidation and reflective daily narratives.
-- **A mixed-OS fleet** — Windows and macOS clones plus an always-on Linux node running the web UI as a VPN-only service, coordinating purely through git.
+- **A mixed-OS fleet with a real control plane** — Windows and macOS clones plus an always-on Linux node, a git-tracked machine registry, backend switching to any machine's UI from anywhere, cross-machine thread events over the VPN, and content still riding git.
+- **Self-hosted GPU services** — text-to-speech and image generation on fleet machines' spare GPUs, and a figure-generation workflow that has shipped real figures into real papers.
+- **Interactive artifacts** — reports that collect their own review through choice widgets and comments, feeding the considerations loop; worklogs that render long tasks live and freeze into commentable reports.
 - **Research papers** on agent memory, on assessment design, and — reflexively — on the system itself, all spun out of the day-to-day work.
 - **This echo repo**, regenerated periodically from the private codebase, now carrying the paper's public source snapshots alongside the generated docs.
 
-Active fronts include the system paper's revision loop, draining and converging the considerations pile, the assessment and memory papers, incremental memory-architecture work, and continued refinement of the overnight pipeline.
+Active fronts include the system paper's revision loop, cold-start delivery for cross-machine events (the "nobody's home" case turned out to be the normal one), the assessment and memory papers, and continued refinement of the overnight pipeline.

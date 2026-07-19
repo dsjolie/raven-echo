@@ -526,6 +526,11 @@
       <div class="card-title">Threads</div>
       <div class="card-desc">The work unit between a task and a project — tracked across sessions, machines, and projects via per-machine sidecars and a clone-identity map.</div>
     </a>
+    <a class="card" href="viewer.html?file=patterns/thread-routing.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Thread Routing</div>
+      <div class="card-desc">Threads as routing targets for cron and cross-machine messages — files carry content, injection carries doorbells, events are requests not authorizations.</div>
+    </a>
     <a class="card" href="viewer.html?file=patterns/spec-driven-sandbox.md">
       <span class="card-tag tag-pattern">Pattern</span>
       <div class="card-title">Spec-Driven Sandbox</div>
@@ -591,10 +596,25 @@
       <div class="card-title">Audio Pipeline</div>
       <div class="card-desc">Document-to-speech where the rewrite-into-spoken-form step matters more than the engine, with content-hashed caching.</div>
     </a>
+    <a class="card" href="viewer.html?file=patterns/figure-generation.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Figure Generation</div>
+      <div class="card-desc">Paper figures from one agent session — SVG code for structure, JSON captions for pictures; the caption, not the image, is the artifact under iteration.</div>
+    </a>
+    <a class="card" href="viewer.html?file=patterns/interactive-artefacts.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Interactive Artefacts</div>
+      <div class="card-desc">Reports that collect their own review — choice widgets and comments persisting to sidecars, and live JSONL worklogs that freeze into commentable reports.</div>
+    </a>
     <a class="card" href="viewer.html?file=patterns/desktop-launcher.md">
       <span class="card-tag tag-pattern">Pattern</span>
       <div class="card-title">Desktop Launcher</div>
       <div class="card-desc">A native Wails shell managing multiple local and remote web-app instances, each in its own state-preserving iframe.</div>
+    </a>
+    <a class="card" href="viewer.html?file=patterns/machine-fleet.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Machine Fleet</div>
+      <div class="card-desc">A git-tracked machine registry, channels chosen by what's moving, and backend switching via a port-per-machine reverse proxy — port = machine, from anywhere.</div>
     </a>
   </div>
 </div>
@@ -655,6 +675,11 @@
       <span class="card-tag tag-solution">Solution</span>
       <div class="card-title">xterm.js Upgrade</div>
       <div class="card-desc">Migrating from xterm.js 5.x to 6.x — scrollbar init, double output, and changed scroll APIs.</div>
+    </a>
+    <a class="card" href="viewer.html?file=solutions/offline-first-model-serving.md">
+      <span class="card-tag tag-solution">Solution</span>
+      <div class="card-title">Offline-First Model Serving</div>
+      <div class="card-desc">Fully cached weights, dead server — an expired auth token in an online validation probe. Local serving must never depend on network validation.</div>
     </a>
   </div>
 </div>

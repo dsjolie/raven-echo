@@ -38,6 +38,8 @@ A cross-project task system arrived: markdown files (one per project), a Python 
 
 `raven-work` introduced spec-driven autonomous sessions with hook-enforced boundaries. Three profiles (dev, research, review) declare what the agent may touch; a PreToolUse hook checks every call against the profile — paths against worktree boundaries, commands against an allowlist. The governing rule: if you can run it, you can't write it.
 
+*In retrospect: an abandoned approach.* The unattended-work need ended up being met by two lighter mechanisms — the guard's away mode for local runs (March) and cloud agent sessions for web-facing work (which arrive sandboxed by the provider). The spec-driven local sandbox fell out of use; its hook techniques (walk-up config discovery, fail-open policy loading, path containment checks) survive in the hook-system pattern, where they generalize beyond the workflow that spawned them.
+
 ## The Persistent Coordinator (Mar 14)
 
 Munin — named for one of Odin's ravens, the one that stands for memory — arrived as a persistent Claude Code session that auto-launches with the web UI server and serves as the standing target for scheduled work. The same day, `raven-echo` was created to generate shareable knowledge extracts from the private repo (this repository is its output).
@@ -126,7 +128,7 @@ A second GPU service joined the self-hosted roster: an open-weight, caption-trai
 
 Five and a half months from first commit. The system now has:
 
-- **Around two dozen skills** — status, reflection, continuity, threads, task and inbox management, claim/reference verification, security auditing, sandboxed work, paper reading, memory consolidation, knowledge wiki access, audio narration, knowledge-echo generation, tool guardrails, away mode, commit-locking, considerations-convergence, task discussions, and skill development itself.
+- **Around two dozen skills** — status, reflection, continuity, threads, task and inbox management, claim/reference verification, security auditing, paper reading, figure generation, memory consolidation, knowledge wiki access, audio narration, knowledge-echo generation, tool guardrails, away mode, commit-locking, considerations-convergence, task discussions, and skill development itself.
 - **A panel-based web UI** spanning terminal, a Project Focus cockpit (tasks, considerations, review), overview, sessions, status, memory, wiki, reader, and settings — usable from desktop, mobile, and a native desktop shell.
 - **A considerations-and-handlers loop** that keeps the agent's own filed suggestions from drowning the human backlog — routing each to a handler that does the verb with inspectable evidence, or surfaces on doubt.
 - **A notification and scheduling system** plus a persistent coordinator session for proactive, scheduled agent behavior.

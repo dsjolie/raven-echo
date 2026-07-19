@@ -52,7 +52,7 @@ The source map is a Markdown file in the skill's `references/` directory. Each o
 ## patterns/hook-system.md
 - web-ui/hooks/notify-hook.js      # simple hook example
 - web-ui/hooks/raven-guard.js      # complex hook with mode-based gating
-- skills/raven-work/scripts/sandbox-hook.py  # permission enforcement
+- web-ui/hooks/gitlock-nudge.js    # advisory PostToolUse example
 
 Key ideas: exit-code API (0/1/2), external state read at invocation time,
 matcher-based config format, behavior guidance messages to the model.

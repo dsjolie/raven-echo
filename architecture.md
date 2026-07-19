@@ -65,8 +65,7 @@ Hooks fire scripts on agent lifecycle events, and they're the primary way Raven 
 
 1. **Notification** — a lightweight hook fires on session start/stop and permission requests, POSTs a single event to the web UI, and exits. The UI uses these to track terminal state (running? awaiting permission?).
 2. **Guard** — a mid-weight PreToolUse hook fires on every tool call and reads a mode file to decide its behavior: in default mode it catches command patterns that would trigger permission prompts and returns guidance; in away mode it additionally blocks tools that need prompts, enabling unattended runs behind a whitelist.
-3. **Sandbox enforcement** — a heavyweight hook gates every tool call during sandboxed work, checking paths against worktree boundaries and commands against an allowlist.
-4. **Advisory nudges** — a PostToolUse hook reminds a session to release the commit-lock after committing; a PermissionRequest hook auto-rejects prompts in away mode.
+3. **Advisory nudges** — a PostToolUse hook reminds a session to release the commit-lock after committing; a PermissionRequest hook auto-rejects prompts in away mode.
 
 Exit codes are the API: 0 allows, nonzero blocks with a message surfaced to the agent so it can adapt. Behavior that needs to change at runtime (the guard's mode) lives in an external file the hook reads on each invocation, not in the hook itself.
 

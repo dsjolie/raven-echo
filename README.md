@@ -43,7 +43,6 @@ Reusable approaches that generalize beyond this specific project.
 - [patterns/threads.md](patterns/threads.md) — The work unit between a task and a project, tracked across sessions and machines via per-machine sidecars
 - [patterns/thread-routing.md](patterns/thread-routing.md) — Threads as routing targets for cron jobs and cross-machine messages: files carry content, injection carries doorbells, events are requests not authorizations
 - [patterns/machine-fleet.md](patterns/machine-fleet.md) — A git-tracked machine registry, channels chosen by what's moving, and backend switching via a port-per-machine reverse proxy
-- [patterns/spec-driven-sandbox.md](patterns/spec-driven-sandbox.md) — Sandboxing autonomous agents with hook-enforced permission boundaries
 - [patterns/guard-system.md](patterns/guard-system.md) — Mode-based tool-call guardrails via a PreToolUse hook
 - [patterns/gitlock.md](patterns/gitlock.md) — An advisory commit-lock for multiple agent sessions sharing one git clone
 - [patterns/notification-system.md](patterns/notification-system.md) — Agent-to-browser messaging with persistent modals and ephemeral toasts
@@ -80,7 +79,7 @@ Specific edge-case fixes and workarounds — problems that took real debugging t
 
 Self-contained, reusable scripts copied verbatim from the project.
 
-- [scripts/](scripts/) — Guard hook, notification hook, sandbox hook, commit-lock CLI, permission profiles
+- [scripts/](scripts/) — Guard hook, notification hook, commit-lock CLI and nudge hook
 
 ### Paper Sources
 

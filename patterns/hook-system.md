@@ -81,6 +81,8 @@ Data-driven patterns extend the guard without code changes: a `guidance-db.json`
 
 Heavyweight hooks implement a security policy for sandboxed work. Unlike the guard (which guides the agent toward good behavior), permission enforcement hooks implement a hard boundary: every tool call must affirmatively match a policy or it is denied.
 
+(The spec-driven sandbox workflow this tier was built for has since been retired — the guard's away mode plus provider-sandboxed cloud sessions covered the unattended-work need with less machinery. The tier stays documented because the techniques below — walk-up config discovery, fail-open policy loading, path containment — apply to any hard-boundary hook.)
+
 ```python
 # sandbox-hook.py — simplified
 hook_input = json.loads(sys.stdin.read())
@@ -157,7 +159,7 @@ Hooks are registered in the agent's settings file under an event-keyed structure
 
 An empty `matcher` string matches all tools. A specific name like `"Bash"` narrows the hook to that tool only, which matters for `PostToolUse` hooks that only care about one tool type.
 
-Multiple hooks on the same event run in order. For `PreToolUse`, this means the guard runs before the sandbox — the guard catches patterns that should never run regardless of sandbox state; the sandbox catches everything the guard doesn't explicitly address.
+Multiple hooks on the same event run in order. For `PreToolUse`, this means broad-pattern hooks run before policy hooks — the guard catches patterns that should never run regardless of any policy state; a policy hook catches everything the guard doesn't explicitly address.
 
 `PostToolUse` hooks are advisory — they cannot block (the tool already ran). They can inject `additionalContext` into the agent's next input. This is the right place for reminders: the gitlock-nudge hook runs after `git commit` or `git push`, checks if the current session still holds a commit-lock, and injects a reminder to release it. Placing this in `PostToolUse` rather than `PreToolUse` ensures it doesn't interfere with the guard's pre-execution checks.
 

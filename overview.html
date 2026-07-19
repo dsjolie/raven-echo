@@ -132,8 +132,6 @@
   .arch-ext.tasks .name { color: #ce93d8; }
   .arch-ext.memory { border-color: rgba(255, 138, 128, 0.25); }
   .arch-ext.memory .name { color: #ff8a80; }
-  .arch-ext.sandbox { border-color: rgba(255, 213, 79, 0.25); }
-  .arch-ext.sandbox .name { color: #ffd54f; }
   .arch-ext.threads { border-color: rgba(128, 203, 196, 0.25); }
   .arch-ext.threads .name { color: #80cbc4; }
 
@@ -427,10 +425,6 @@
         <div class="name">Memory</div>
         <div class="desc">Persistent context</div>
       </div>
-      <div class="arch-ext sandbox">
-        <div class="name">Sandbox</div>
-        <div class="desc">Autonomous agent boundaries</div>
-      </div>
       <div class="arch-ext threads">
         <div class="name">Threads</div>
         <div class="desc">Cross-session work units</div>
@@ -475,7 +469,7 @@
       </a>
       <a href="#lb-tasks" class="gallery-item">
         <img src="screenshots/tasks-overview.jpg" alt="Task overview" loading="lazy">
-        <div class="gallery-caption">Task overview — note the sandboxed "CC! Bash" permission indicator in the tab</div>
+        <div class="gallery-caption">Task overview — note the permission indicator in the tab</div>
       </a>
       <a href="#lb-wiki" class="gallery-item">
         <img src="screenshots/wiki.jpg" alt="Knowledge base wiki" loading="lazy">
@@ -530,11 +524,6 @@
       <span class="card-tag tag-pattern">Pattern</span>
       <div class="card-title">Thread Routing</div>
       <div class="card-desc">Threads as routing targets for cron and cross-machine messages — files carry content, injection carries doorbells, events are requests not authorizations.</div>
-    </a>
-    <a class="card" href="viewer.html?file=patterns/spec-driven-sandbox.md">
-      <span class="card-tag tag-pattern">Pattern</span>
-      <div class="card-title">Spec-Driven Sandbox</div>
-      <div class="card-desc">Permission boundaries for autonomous agents — if you can run it, you can't write it.</div>
     </a>
     <a class="card" href="viewer.html?file=patterns/echo-generation.md">
       <span class="card-tag tag-pattern">Pattern</span>

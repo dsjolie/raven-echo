@@ -72,6 +72,17 @@ Main only receives cloud work through the night-pull job, which:
 
 Merge conflicts are not auto-resolved. They abort the merge and surface in the briefing — the cost of a missed night's merge is lower than the cost of a silent bad merge.
 
+### Containment lanes, and moving them into the prompt
+
+The gate's job turns out to be less "is this diff safe" and more "which of this run's claims are allowed to become durable." Two lanes emerged from running it for months:
+
+- **Report-only content.** Anything the run sourced from the open web stays in its report and never lands in a knowledge article, no matter how well-argued. This was enforced by hand at the merge gate for six weeks before it was written into the prompt — and the six weeks were the evidence that it needed to be.
+- **Measured-or-omitted values.** Any date, count, or version an agent states about a repository artefact must cite the command that produced it *in the same pass*, or be left out. See [patterns/instrument-trust.md](instrument-trust.md) for why the omission clause is the load-bearing half.
+
+Both of these are **prompt-layer** constraints rather than hook-layer ones, and the distinction is architectural. A hook can block a dangerous command form unconditionally, everywhere. It cannot distinguish a measured date from a fabricated one, because stating a date is a legitimate action — so the constraint has to live where the action is *specified*, in the prompt that drives the run. The price is coverage: a prompt-layer rule protects only the runs consuming that prompt and leaves every other session unguarded against the same mistake.
+
+The gate's cheapest and highest-yield move is one verification command per stated claim. Over eight instances of an agent inventing plausible "last edited" dates, the gate spending a single `git log` line per claim kept all but one out of the knowledge base.
+
 ### JS-heavy URL handling
 
 The cloud agent has `WebFetch` but no browser, so JavaScript-rendered pages return empty. A two-tier strategy handles this. The night-push job at 02:30 scans `#auto` tasks for known JS-heavy URL patterns (social media, single-page apps) and fetches them via a locally running headless browser, saving the rendered text to `incoming/prefetch-<date>-<slug>.md` before the cloud runs begin. The cloud agent checks for pre-fetched content first. If nothing is pre-fetched, it falls back to a server-side rendering proxy (`https://r.jina.ai/<url>`), which returns Markdown without requiring browser infrastructure.
@@ -106,5 +117,9 @@ When all sub-tasks are done, a subsequent run (not the one that finished the las
 - **The night-pull gate is not infallible.** An agent reviewing content produced by another agent on the same model family will miss some failure modes. The gate's real value is catching *structural* problems (merge conflicts, stuck locks, suspicious volume of changes) rather than subtle *content* problems. Human inspection of the morning briefing closes that gap.
 
 - **Schedule jobs away from clock-change windows.** Jobs timed to 02:00–03:00 are vulnerable to daylight saving transitions. The night-push job at 02:30 has been lost to a spring-forward transition. If a job must run in that window, duplicate it with a guard against running twice.
+
+- **A prompt fix is in force when the consuming run's checkout contains it, not when you commit it.** The shared branch is supposed to merge main at the start of every run; on the night that mattered, it didn't, and a constraint committed twelve hours earlier was violated by a run that had never received it. Verify per-run with `git show <run-commit>:<prompt-path>` before concluding a rule is too weak — see [solutions/stale-prompt-delivery.md](../solutions/stale-prompt-delivery.md).
+
+- **The pipeline's reports are instruments, and instruments can be dead.** A guardrail switched off for four days produced two consecutive nightly reports recording "zero guard bounces" as a property of the night. Have each run state which mode it executed under, so a clean result always arrives with evidence that the check was live.
 
 - **Cloud runs share account rate limits.** Heavy daytime usage competes with overnight slots. The scheduled hourly trigger fires at :07, but actual execution can be delayed. Design tasks to be stateless across a run delay — the lock file prevents double-execution, not delay.

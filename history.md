@@ -124,9 +124,35 @@ The machine roster graduated from a hostname-alias map to a full **registry** �
 
 A second GPU service joined the self-hosted roster: an open-weight, caption-trained image model on a fleet machine's spare GPU, VPN-bound like the TTS server but **load-on-demand** — the host has a day job, so the model unloads after idle minutes, and a lease endpoint keeps it warm through iteration loops. Three days later a figure-generation skill turned it into a paper tool, collapsing a published multi-agent architecture into phases of one session with two lanes: SVG code for structural diagrams, structured JSON captions for pictorial figures — where the caption, not the image, is the artifact under iteration, and a fixed seed makes surgical caption edits approximately structure-preserving. Both lanes shipped real figures into real papers within a day of the skill existing. The service also produced this period's hardest-won lesson: an expired auth token killed cold loads despite fully cached weights, because the loader validated online before reading disk — serving is offline-first now.
 
-## Current State (Jul 19, 2026)
+## Memory Gets a Master Copy (Jul 23–26)
 
-Five and a half months from first commit. The system now has:
+Persistent memory had lived where the runtime put it: a per-user directory on each machine, unsynced, invisible to every other clone. With four machines that had become untenable — a lesson learned on one box was unreachable from the next, shared facts drifted into three differently-worded versions, and machine-specific entries were tangled with fleet-wide ones so nothing could safely be copied.
+
+The fix started with a decision that was about privacy rather than engineering: **git-track the memory directory itself**, accepting that topic files now travel wherever the repo travels. With that granted, the mechanism is small. The canonical index lives in the repo; the file the agent auto-loads is that index plus an optional per-machine local section below a marker line, whose entries never leave the machine. Machine-specific topic files sit in a per-machine subdirectory, still in git, pointed at only by that machine's local section.
+
+The design's one deliberate asymmetry: blind copy runs only master → runtime. Promoting a local entry *into* the shared master is an agent's judgment call at nightly consolidation, because that's the single edge where a wrong move either leaks local detail into shared state or buries a shared lesson on one machine. Within a day of shipping, promotions were flowing from two machines at once and produced a push race — resolved as an ordinary text merge, which is the design working: git is the conflict surface, and no bespoke sync protocol was ever written. The remaining clones were onboarded over the following three days; the third surfaced real gaps, the fourth surfaced none, which is where the tooling's claim upgraded from "works on the machines we tried" to portable.
+
+## The Fleet Becomes a Room (Jul 24–30)
+
+A headset arrived in the loop and the fleet gained a third frontend. From thread-open to sharp text and no freeze in the headset took a single evening — with the human typing into the building session *from inside the headset* mid-build — and the next day the one-machine-at-a-time view was gone: every reachable machine in a fixed angular slot, its own cluster of session panels, ownership drawn as colour and geometry rather than labels, the selected peer fully live including keyboard input.
+
+The organizing question was answered before the rendering work: this is a **watchtower with a seat**, not a workspace. Three verbs — notice, turn to, converse — and anything serving none of them stays on the desktop. The third verb was argued down from "answer" (small acts that unblock) to full conversation, on the project's own evidence that agent sessions are conversational; a filter whose spirit is "minimal acknowledgement buttons" would have built a watchtower where you can only grunt.
+
+Two findings were cheaper than expected and one was much harder. Reaching peer machines needed no relay, no subscription registry, and no fan-out — just a same-origin websocket route piping the peer's protocol verbatim, about fifteen lines, arrived at by asking why the mobile client's existing machine-switching wasn't enough. Wake cues needed no new protocol either: the server had been broadcasting permission and completion events all along and the client was dropping them. The hard one was a judder that made the whole world swim on every terminal update; three successive causal models were falsified (frame-budget overrun, stale head pose, GPU-bound rendering), and what shipped was a perceptual mitigation — hold texture uploads while the head is turning, flush after a quarter-second of calm — recorded honestly in the thread head as *consistent with* the surviving model rather than a confirmation of it.
+
+## Learning to Distrust Its Own Reports (Jul 28 – Aug 10)
+
+The most consequential work of this period produced no feature. Running an autonomous pipeline long enough surfaced a failure family that ordinary bugs don't cover: **a check that didn't run is indistinguishable from one that passed.**
+
+The instances arrived from every direction. A guardrail hook had been switched off for four days while two consecutive nightly reports recorded "zero guard bounces" as a property of the night. A coverage script reported clean against a hand-written list that had never gained the newest screens. A screenshot driver's cache-buster was keyed to file modification time — correct for "did it change", useless for the verification case where you re-shoot an unchanged file. An agent that died mid-write left a file that was present, well-formed, and the previous version, so every exists-and-looks-right check passed. And across eight nightly passes, an agent stated article edit dates that no `git log` had produced — fluent, in-range, often adjacent to something true.
+
+That last one was diagnosed by reading its error *signatures* together rather than one at a time: a shared wrong value across a report, an exact one-month shift, a date borrowed from a neighbouring sentence. Three incompatible error shapes all yielding plausible values killed the working hypothesis that some wrong instrument was being misread. There was no instrument to find.
+
+The fixes are structural and mostly live at the prompt layer, because stating a date is a legitimate action no hook can gate: cite the command that produced a value *in the same pass* or omit it, with the omission clause doing the load-bearing work; derive a coverage scope from the filesystem and print what was covered rather than how many; key cache-busters on the clock rather than the subject. A companion trap surfaced in the same weeks — a prompt fix is in force when the consuming run's checkout contains it, not when it's committed, and a constraint that appears to have failed may simply never have been delivered.
+
+## Current State (Aug 10, 2026)
+
+Six months from first commit. The system now has:
 
 - **Around two dozen skills** — status, reflection, continuity, threads, task and inbox management, claim/reference verification, security auditing, paper reading, figure generation, memory consolidation, knowledge wiki access, audio narration, knowledge-echo generation, tool guardrails, away mode, commit-locking, considerations-convergence, task discussions, and skill development itself.
 - **A panel-based web UI** spanning terminal, a Project Focus cockpit (tasks, considerations, review), overview, sessions, status, memory, wiki, reader, and settings — usable from desktop, mobile, and a native desktop shell.
@@ -135,9 +161,13 @@ Five and a half months from first commit. The system now has:
 - **An overnight local-cloud pipeline** for unattended research, memory maintenance, and security auditing.
 - **A wiki knowledge base** reachable from every tracked project, with nightly librarian-style consolidation and reflective daily narratives.
 - **A mixed-OS fleet with a real control plane** — Windows and macOS clones plus an always-on Linux node, a git-tracked machine registry, backend switching to any machine's UI from anywhere, cross-machine thread events over the VPN, and content still riding git.
+- **A spatial client** — a WebXR page rendering the fleet as a room, riding the existing session and terminal protocols with one same-origin route added, used as a watchtower rather than a workspace.
+- **Fleet-wide memory** — one git-mastered index projected into each machine's runtime, with a per-machine local section and agent-judged promotion in the one direction that needs judgment.
 - **Self-hosted GPU services** — text-to-speech and image generation on fleet machines' spare GPUs, and a figure-generation workflow that has shipped real figures into real papers.
 - **Interactive artifacts** — reports that collect their own review through choice widgets and comments, feeding the considerations loop; worklogs that render long tasks live and freeze into commentable reports.
 - **Research papers** on agent memory, on assessment design, and — reflexively — on the system itself, all spun out of the day-to-day work.
 - **This echo repo**, regenerated periodically from the private codebase, now carrying the paper's public source snapshots alongside the generated docs.
 
-Active fronts include the system paper's revision loop, cold-start delivery for cross-machine events (the "nobody's home" case turned out to be the normal one), the assessment and memory papers, and continued refinement of the overnight pipeline.
+- **A verification regime for its own reports** — measured-or-omitted values, derived rather than declared scopes, and the discipline of asking what a clean result would look like if the check had never run.
+
+Active fronts include the system paper's revision loop, cold-start delivery for cross-machine events (the "nobody's home" case turned out to be the normal one), the assessment and memory papers, verification of the spatial client's wake cues in a headset, an unresolved transient git write failure being run as a self-measuring experiment, and continued refinement of the overnight pipeline.

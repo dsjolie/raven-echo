@@ -51,7 +51,10 @@ Reusable approaches that generalize beyond this specific project.
 - [patterns/task-system.md](patterns/task-system.md) — Cross-project task management with markdown files, urgency grouping, and autonomous-task tagging
 - [patterns/considerations-and-handlers.md](patterns/considerations-and-handlers.md) — Keeping an agent's own filed suggestions from drowning the human backlog: a separate pile, routed by category to handlers that act on inspectable evidence or surface on doubt
 - [patterns/task-discussions.md](patterns/task-discussions.md) — A per-item "Discuss" button that spawns a context-primed agent session to re-load a stale backlog item's forgotten context before you decide
+- [patterns/instrument-trust.md](patterns/instrument-trust.md) — Making an autonomous system's own checks falsifiable: a check that didn't run is indistinguishable from one that passed
 - [patterns/knowledge-base.md](patterns/knowledge-base.md) — Wiki-style knowledge store with wikilinks, nightly consolidation, and cross-project access
+- [patterns/fleet-memory.md](patterns/fleet-memory.md) — One git-mastered memory index projected into every machine's runtime, with a per-machine local section and judgment on exactly one edge
+- [patterns/xr-situation-room.md](patterns/xr-situation-room.md) — A spatial surface for a fleet of agent sessions: a watchtower with a seat, not a workspace
 - [patterns/service-registry.md](patterns/service-registry.md) — Declarative service registration with liveness pinging and host rewriting for remote access
 - [patterns/audio-pipeline.md](patterns/audio-pipeline.md) — Document-to-speech where the rewrite step matters more than the engine, with content-hashed caching
 - [patterns/figure-generation.md](patterns/figure-generation.md) — Paper figures from an agent session: SVG code for structure, structured JSON captions for pictures — the caption, not the image, is the artifact under iteration
@@ -74,12 +77,14 @@ Specific edge-case fixes and workarounds — problems that took real debugging t
 - [solutions/cross-platform.md](solutions/cross-platform.md) — Portability seams between Windows and macOS clones of one repo
 - [solutions/xterm-upgrade.md](solutions/xterm-upgrade.md) — Migrating from xterm.js 5.x to 6.x without breaking scrolling
 - [solutions/offline-first-model-serving.md](solutions/offline-first-model-serving.md) — Fully cached model weights, dead server: an expired auth token in an online validation probe, and why local serving must never depend on network validation
+- [solutions/stale-prompt-delivery.md](solutions/stale-prompt-delivery.md) — A prompt or config fix is in force when the consuming run's checkout contains it, not when you commit it
+- [solutions/transient-git-einval.md](solutions/transient-git-einval.md) — Transient `Invalid argument` writes inside `.git/objects` on Windows under cloud sync: an open ledger, a pre-declared verdict lane, and the probe worth having
 
 ### Scripts
 
 Self-contained, reusable scripts copied verbatim from the project.
 
-- [scripts/](scripts/) — Guard hook, notification hook, commit-lock CLI and nudge hook
+- [scripts/](scripts/) — Guard hook, notification hook, commit-lock CLI and nudge hook, memory-index sync
 
 ### Paper Sources
 

@@ -146,6 +146,8 @@ Claude Code provides auto-memory (an index file plus topic files) that persists 
 
 A consolidation skill periodically snapshots auto-memory, runs health diagnostics (dangling pointers, bloated index, unreachable files), and guides pruning — treating memory maintenance as a first-class operation.
 
+Across a fleet, memory is **mastered in the repo and projected into each runtime**. The canonical index and every topic file are git-tracked; the file the agent auto-loads is the master's content plus an optional per-machine local section below a marker line, whose entries never leave that machine. Machine-specific topic files live in a per-machine subdirectory and are pointed at only by that machine's local section — still in git, so they're fleet-visible and backed up, but only one clone loads them. The sync script is deliberately mechanical in the master→runtime direction and refuses to be clever in the other: promoting a local entry into the shared master is an agent's judgment call at consolidation time, because that's the one edge where a wrong decision either leaks local detail into shared state or buries a shared lesson on one machine. Details in [patterns/fleet-memory.md](patterns/fleet-memory.md).
+
 ## Threads
 
 The labeled files that reflect and continue read and write are **threads** — the work unit between a single task and a whole project (a refactor, a feature design, a paper revision). Threads are first-class: they have an overview CLI, a web UI panel, and a session-tracking layer that works across machines.
@@ -155,6 +157,12 @@ Because one repo is often cloned on several machines, session bookkeeping is spl
 ## Native Desktop Shell
 
 A small Wails app (Go backend + system WebView) wraps the browser workspace as a native, multi-instance launcher. It spawns and stops *local* web-ui instances itself (running the Node server with a chosen port and streaming its startup log) and merely connects to *remote* instances over a VPN. Each instance is embedded in its own iframe, so switching between Ravens preserves each one's live session and terminal state. Process management is split per platform (separate Go files for Windows and Unix), because killing a spawned process tree differs across OSes.
+
+## Spatial Client
+
+A third frontend, alongside the browser workspace and the desktop shell: a self-contained WebXR page that renders the whole fleet as a room. Each reachable machine holds a fixed angular slot with its own cluster of session panels; ownership is drawn geometrically (per-machine colour, a curved rail across that machine's arc, a connector from each panel to its rail) rather than labelled. It rides the existing session API and terminal-over-websocket protocol unchanged — the only server addition is a same-origin `/fleet/<machine>` upgrade route that resolves a name in the machine registry and hands the socket to the reverse proxy, so a peer's protocol arrives verbatim and remote input works by construction.
+
+The design frame is narrow on purpose: a **watchtower with a seat**, not a workspace — notice, turn to, converse. Terminal content is parsed by real emulator instances running headless into offscreen canvases, and the focused panel is promoted to a compositor quad layer, because at headset pixel density legibility is the binding constraint. Wake cues (a pending permission, a finished run) turned out to need no new protocol at all: the server was already broadcasting them and the client was dropping them. Details in [patterns/xr-situation-room.md](patterns/xr-situation-room.md).
 
 ## Cross-Platform
 

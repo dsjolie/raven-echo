@@ -192,6 +192,22 @@ The web-approve state is a JSON file with `{active, expires_at, tools, bash_pref
 
 **The guidance-db is data, not code.** Patterns observed in the failure log get added to `guidance-db.json` during consolidation without touching the hook. This keeps the hook's logic stable (it loads the database on first call and caches it) while allowing the pattern set to grow as new failure modes are observed.
 
+**A rule whose advice cannot be followed induces the bypass it was meant to prevent.** The guard blocked `grep`/`rg` in Bash with "use the built-in Grep tool — it respects the deny rules." Correct, until an experimental feature flag turned out to *remove* the Grep tool from the session's surface. The advice then pointed at something that didn't exist, so sessions rerouted their searches through `awk` and `sed` — which bypass the deny rules exactly as much as `grep` does, and which no rule covered. The guard was buying **the appearance of deny protection while inducing an unguarded bypass**, which is strictly worse than not having the rule.
+
+The fix keys on the flag rather than a version (thirteen patch releases later the tools were still absent, so it's flag-intrinsic, not a bug awaiting a fix) and closes the hole the same change opened:
+
+```
+grep/rg leading, flag OFF                      -> block (Grep exists, advice followable)
+grep/rg leading, flag ON, deny-listed path     -> block (don't route around a deny)
+grep/rg leading, flag ON, ordinary path        -> allow
+cat/awk/sed/head/tail/less/more/strings/xxd/od
+   leading on a deny-listed path               -> block regardless of flag  (new)
+```
+
+Two things generalize. **Check that a rule's suggested alternative exists in the context the rule fires in** — an unfollowable block is not a safe default, it's a redirect to whatever the agent improvises. And **enumerate the whole class, not the one member you noticed**: the deny rules were only ever protected against `grep`, while every other file-reading command walked through.
+
+**A settings-only audit cannot see a tool surface set by an environment variable.** The flag above appears in no settings file — it's exported by a launcher — so the permissions-and-hooks audit was structurally blind to a change that removed deny-respecting tools from the session. The collector now reports posture variables from both the declared settings `env` block *and* the live process environment. Same family as the guard-mode gap below: the instrument reported accurately over what it could see, and what it could see was the wrong set.
+
 **Off is sticky, and a disabled guard is silent rather than absent.** The mode file was found reading `off` four days after someone set it that way. In that mode the PreToolUse hook exits after the commit-lock check and the permission hook returns early, so nothing can block or bounce anything — and the automated nightly runs during those four days duly reported "zero guard bounces" as if that were a property of the night. One of them even attributed a bounce to an away-mode whitelist that could not have been executing. The scheduled auto-away job cannot correct this: it only promotes *default* → *away*, so a deliberate *off* survives, which is correct behaviour for a user setting. The missing piece is visibility — nothing surfaced which mode a given run was executing under. Any report asserting an absence of guard events should carry the live mode beside it. Generalised in [instrument-trust.md](instrument-trust.md).
 
 **Fail-open is a deliberate policy for correctness mechanisms, not laziness.** The commit-lock and the web-approve check both fail open. For the lock, an advisory mechanism that can brick a repo is worse than one that occasionally allows a concurrent operation. For web-approve, a parse error on the state file should not unexpectedly lock out web access mid-task. Fail-open is correct here because the mechanism is advisory; fail-open on a security check would be wrong.

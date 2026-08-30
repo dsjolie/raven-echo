@@ -56,7 +56,8 @@ Reusable approaches that generalize beyond this specific project.
 - [patterns/fleet-memory.md](patterns/fleet-memory.md) — One git-mastered memory index projected into every machine's runtime, with a per-machine local section and judgment on exactly one edge
 - [patterns/xr-situation-room.md](patterns/xr-situation-room.md) — A spatial surface for a fleet of agent sessions: a watchtower with a seat, not a workspace
 - [patterns/service-registry.md](patterns/service-registry.md) — Declarative service registration with liveness pinging and host rewriting for remote access
-- [patterns/audio-pipeline.md](patterns/audio-pipeline.md) — Document-to-speech where the rewrite step matters more than the engine, with content-hashed caching
+- [patterns/audio-pipeline.md](patterns/audio-pipeline.md) — Document-to-speech where the rewrite step matters more than the engine, with content-hashed caching and a house voice anchored by conditioning rather than sampling
+- [patterns/gpu-tenancy.md](patterns/gpu-tenancy.md) — Arbitrating one GPU between several resident model services: a proxy, because a lease is arbitration by cooperation and anything that can reach a backend directly walks past it
 - [patterns/figure-generation.md](patterns/figure-generation.md) — Paper figures from an agent session: SVG code for structure, structured JSON captions for pictures — the caption, not the image, is the artifact under iteration
 - [patterns/interactive-artefacts.md](patterns/interactive-artefacts.md) — HTML reports that collect their own review: choice widgets and comments persisting to sidecars, plus live JSONL worklogs that freeze into commentable reports
 - [patterns/desktop-launcher.md](patterns/desktop-launcher.md) — A native Wails shell that manages multiple local and remote web-app instances

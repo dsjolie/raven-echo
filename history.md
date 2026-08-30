@@ -150,9 +150,19 @@ That last one was diagnosed by reading its error *signatures* together rather th
 
 The fixes are structural and mostly live at the prompt layer, because stating a date is a legitimate action no hook can gate: cite the command that produced a value *in the same pass* or omit it, with the omission clause doing the load-bearing work; derive a coverage scope from the filesystem and print what was covered rather than how many; key cache-busters on the clock rather than the subject. A companion trap surfaced in the same weeks — a prompt fix is in force when the consuming run's checkout contains it, not when it's committed, and a constraint that appears to have failed may simply never have been delivered.
 
-## Current State (Aug 10, 2026)
+## Three Tenants, One Card (Aug 10–11)
 
-Six months from first commit. The system now has:
+The self-hosted GPU services had each been a success on its own terms, and together they were a collision waiting to happen: an image model, a speech model, and a local chat/embedding runtime, each around 20 GB, all load-on-demand, all on one 24 GB card, none aware of the others. Whichever loaded second died. The near-miss that forced the work was a queued hundred-minute speech render that any image request from any machine would have killed — with a *truncated file* as the only symptom, because the speech backend fails silently and still returns success.
+
+The first design was a lease service: backends ask before loading. It was argued down within the day, on a reason worth keeping: **a lease is arbitration by cooperation**, so anything that can still reach a backend directly walks past it, and a bypassed lock is worse than no lock because it looks like protection. A proxy makes arbitration a property of the **topology** — front the backends, bind them to localhost, and admission becomes a queue in one process, with no changes to any backend (one of them unmodified upstream code nobody wanted to fork). The "smaller, safer first step" turned out not to be smaller: the lease needed clients migrated off the direct addresses anyway, which is the proxy's whole premise.
+
+The same instinct settled the migration. Preserving the incumbent service's contract at its old address had already forced two compatibility hacks before a single client had moved, so the old addresses were **retired rather than proxied** — connection refused is a loud failure; a shim is a client that keeps working while quietly meaning something else.
+
+Everything after that was learned by running it. A backend's self-reported memory use (in its own units, for its own purposes) set the admission bar above what the machine could ever offer and vetoed every speech request forever. An optimisation that shared one probe between two callers silently changed the question from "who answered" to "who is holding", so an idle-but-healthy service was reported as not answering. A health-check timeout tuned for the request path reported a mid-load backend as down once probes moved to a background loop. And the boot task failed silently twice — a bare tool name absent from the service account's PATH, then a trigger firing before the VPN interface existed — both already solved in the sibling service next door, whose launcher and `main()` nobody had read.
+
+## Current State (Aug 29, 2026)
+
+Just under seven months from first commit. The system now has:
 
 - **Around two dozen skills** — status, reflection, continuity, threads, task and inbox management, claim/reference verification, security auditing, paper reading, figure generation, memory consolidation, knowledge wiki access, audio narration, knowledge-echo generation, tool guardrails, away mode, commit-locking, considerations-convergence, task discussions, and skill development itself.
 - **A panel-based web UI** spanning terminal, a Project Focus cockpit (tasks, considerations, review), overview, sessions, status, memory, wiki, reader, and settings — usable from desktop, mobile, and a native desktop shell.
@@ -163,11 +173,13 @@ Six months from first commit. The system now has:
 - **A mixed-OS fleet with a real control plane** — Windows and macOS clones plus an always-on Linux node, a git-tracked machine registry, backend switching to any machine's UI from anywhere, cross-machine thread events over the VPN, and content still riding git.
 - **A spatial client** — a WebXR page rendering the fleet as a room, riding the existing session and terminal protocols with one same-origin route added, used as a watchtower rather than a workspace.
 - **Fleet-wide memory** — one git-mastered index projected into each machine's runtime, with a per-machine local section and agent-judged promotion in the one direction that needs judgment.
-- **Self-hosted GPU services** — text-to-speech and image generation on fleet machines' spare GPUs, and a figure-generation workflow that has shipped real figures into real papers.
+- **Self-hosted GPU services behind one arbiter** — text-to-speech, image generation, and a local chat/embedding runtime sharing single cards, with admission by memory budget, honest `503`s naming the holder, and lifecycle supplied for the tenant that has none of its own.
 - **Interactive artifacts** — reports that collect their own review through choice widgets and comments, feeding the considerations loop; worklogs that render long tasks live and freeze into commentable reports.
 - **Research papers** on agent memory, on assessment design, and — reflexively — on the system itself, all spun out of the day-to-day work.
 - **This echo repo**, regenerated periodically from the private codebase, now carrying the paper's public source snapshots alongside the generated docs.
 
 - **A verification regime for its own reports** — measured-or-omitted values, derived rather than declared scopes, and the discipline of asking what a clean result would look like if the check had never run.
 
-Active fronts include the system paper's revision loop, cold-start delivery for cross-machine events (the "nobody's home" case turned out to be the normal one), the assessment and memory papers, verification of the spatial client's wake cues in a headset, an unresolved transient git write failure being run as a self-measuring experiment, and continued refinement of the overnight pipeline.
+Active fronts include the system paper's revision loop, cold-start delivery for cross-machine events (the "nobody's home" case turned out to be the normal one), the assessment and memory papers, verification of the spatial client's wake cues in a headset, and continued refinement of the overnight pipeline.
+
+One long-running investigation deserves its own line, because its *shape* is the output: a transient git write failure now seventeen instances deep, with two successive explanatory hypotheses proposed, tested, and retired by their own evidence, a probe that runs at the moment of failure and has returned the same verdict seven times, and one cheap decisive test that needs a human and has gone unrun through seventeen asks. Nothing currently predicts an instance — which is a more informative state than a plausible story still standing, and only reachable because every instance was logged with its preceding activity rather than just its error text.

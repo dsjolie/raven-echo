@@ -118,3 +118,27 @@ These instructions are part of the cache key, so changing the steering prompt fo
 ---
 
 The service shape established here — VPN-bound GPU server on a spare machine, one GPU thread for all pipeline work, seed-as-ID for reproducible output, content-hashed client cache — became the template for the second GPU service, self-hosted image generation (see [figure-generation.md](figure-generation.md)). That service diverged in one deliberate way: **load-on-demand instead of resident.** The image model fills most of the GPU and its host has a day job, so the model loads on first request and unloads after idle minutes — with a keep-loaded lease endpoint for iteration loops that would otherwise pay the multi-minute cold load repeatedly. Resident vs. load-on-demand is a per-service call driven by what else the GPU owes its time to.
+
+Enough of these accumulated that they began evicting each other, which produced a separate component: see [gpu-tenancy.md](gpu-tenancy.md) for the arbiter that now fronts them. Two consequences land back here. **Chunking moved out of the clients and behind the shared door** — the higher-quality engine stops at its token limit and returns HTTP 200 with short audio, so one implementation behind the door makes every client safe, where the alternative was every client re-implementing it and one forgetting. And because that door speaks an OpenAI-shaped speech endpoint matching what the other machine's server already spoke, **engine choice became an endpoint change rather than a client rewrite** — a bespoke client-side engine branch that was about to be written never had to be.
+
+## Voice identity: conditioning beats sampling
+
+A second engine, higher quality but on a different machine, created a problem the first never had: **the same "house voice" now has to come out of both.** The original engine synthesises a voice from a design prompt plus a seed, which sounds stable until you render at length. Voice identity there is *emergent from each generation's first sampled tokens* — there is no speaker embedding to pin, so per-chunk seed pinning cannot anchor it. It has no anchor to hold.
+
+The fix removed the cause instead of narrowing it: a **clone mode** that conditions every segment on the same reference clip the other engine already clones from. Timbre then comes from conditioning rather than from sampling, and both engines converge on one voice by construction.
+
+Measured on the same text, the difference isn't subtle: clone drifts **−0.80 dB over 281 s** (span 1.1 dB) against the designed voice's **−8.25 dB** (span 13.4 dB). The long-standing "the volume decreases sometimes" complaint was this, and it's gone.
+
+Three implementation notes worth carrying:
+
+- **Loudness-match in one pass, never chained.** Match every segment to the render's *first* segment in a single pass, so gains cannot compound across a long render, and clamp the gain (e.g. `[0.5, 2.0]`) so a genuinely quiet passage isn't amplified into noise. This is engine-agnostic — apply it to every mode, not just the new one.
+- **Fail loudly on a missing reference.** A clone request whose reference audio is absent returns a 500 naming the path rather than falling back to another model. A fallback there would ship *a different voice under the same name*, which is the worst available failure for this feature.
+- **Verify against the installed version, not the spec's assumed one.** The design assumed one library version; the deployed one was newer, and its API conditioned *every* segment rather than doing the chunk-level anchoring the spec described — finer than specified, but only discoverable by checking.
+
+### Gotchas (voice and deployment)
+
+**A shared reference artifact is not yours to fix unilaterally.** The reference transcript turned out to be missing the final sentence its audio actually contains, so the cloning pair is misaligned — and correcting it measurably improves pace. It was deliberately *not* fixed, because the same file feeds the other engine's service on another machine, whose renders were judged good with the current pair. Changing it would move the house voice somewhere nobody was listening. When an artifact is shared across services, a local improvement is a remote regression risk.
+
+**A coverage checker can be right about the number and wrong about the diagnosis.** Clone mode renders at 200 wpm against the designed voice's 132 on identical text, which tripped the verifier's `LOOKS TRUNCATED` flag. The word ratio was 1.00 with the true closing line present — so it was a false positive *for truncation* and a true signal *about pace*. Temperature was ruled out as the cause (0.7 → 198 wpm, 0.9 → 209). A threshold that conflates two properties will keep reporting the one it was named for.
+
+**A deployed copy is a copy, not a symlink.** The served instance lives outside the repo, so the server file and its service definition must be synced there — and because the service runs with offline mode forced, a new model has to be pre-fetched into the service's own cache directory or it simply cannot download at runtime. Repo-relative defaults don't resolve from the deployed location either; pass those paths explicitly in the service definition.

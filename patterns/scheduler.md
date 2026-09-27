@@ -103,6 +103,8 @@ fs.watch(JOBS_FILE, { persistent: false }, (eventType) => {
 
 The 200ms debounce prevents double-loads from editors that write files in two stages (truncate then write). The reload stops all current tasks before re-registering, so there's no risk of duplicate job instances after a config change.
 
+**This watcher misses atomic writes.** Most editors and agent editing tools replace the file by writing a temp file and renaming it over the target. That surfaces as `rename`, not `change`, so an edit made that way registers nothing, and a job removed that way keeps firing. There is no error either way. Raven currently works around this by convention (edit the jobs file in place with `writeFileSync`). The robust fix is to watch the directory and filter by filename. See [solutions/fswatch-atomic-writes.md](../solutions/fswatch-atomic-writes.md).
+
 ### Nightly pipeline
 
 The scheduler anchors a multi-stage overnight pipeline. Local jobs bracket an external cloud agent that handles tasks requiring web access:

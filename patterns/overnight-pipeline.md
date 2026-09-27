@@ -81,7 +81,7 @@ The gate's job turns out to be less "is this diff safe" and more "which of this 
 
 Both of these are **prompt-layer** constraints rather than hook-layer ones, and the distinction is architectural. A hook can block a dangerous command form unconditionally, everywhere. It cannot distinguish a measured date from a fabricated one, because stating a date is a legitimate action — so the constraint has to live where the action is *specified*, in the prompt that drives the run. The price is coverage: a prompt-layer rule protects only the runs consuming that prompt and leaves every other session unguarded against the same mistake.
 
-The gate's cheapest and highest-yield move is one verification command per stated claim. Over eight instances of an agent inventing plausible "last edited" dates, the gate spending a single `git log` line per claim kept all but one out of the knowledge base.
+The gate's cheapest and highest-yield move is one verification command per stated claim. Over a dozen instances of wrong "last edited" dates in cloud reports, the gate spent a single `git log` line per claim and kept all but one out of the knowledge base. The gate could catch them because it ran on the full local clone. The dates turned out not to be invented. The cloud checkout was a shallow clone, and `git log` there returns the graft boundary's date for anything older (see [instrument-trust.md](instrument-trust.md)). The fix was to unshallow at the start of the run and state no dates if that fails. Where a check runs matters as much as whether it runs.
 
 ### JS-heavy URL handling
 

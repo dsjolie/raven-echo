@@ -500,6 +500,11 @@
       <div class="card-title">Hook System</div>
       <div class="card-desc">Agent lifecycle events as extension points — notification, detection, and permission enforcement.</div>
     </a>
+    <a class="card" href="viewer.html?file=patterns/cross-agent-support.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Cross-Agent Support</div>
+      <div class="card-desc">A second agent runtime in the same workspace. The requirement transfers, the mechanism doesn't: shared orientation and threads, native hooks and memory, no ported guard.</div>
+    </a>
     <a class="card" href="viewer.html?file=patterns/panel-system.md">
       <span class="card-tag tag-pattern">Pattern</span>
       <div class="card-title">Panel System</div>
@@ -569,6 +574,16 @@
       <span class="card-tag tag-pattern">Pattern</span>
       <div class="card-title">Task Discussions</div>
       <div class="card-desc">A per-item "Discuss" button spawns a context-primed agent session that re-loads a stale backlog item's forgotten context before you decide — in an elevatable terminal-backed modal.</div>
+    </a>
+    <a class="card" href="viewer.html?file=patterns/decision-desk.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Decision Desk</div>
+      <div class="card-desc">One prepared decision a day. The open pile becomes completed staff work, answered with Do it / Drop it / Close, executed and committed on yes. An experiment run before restructuring anything.</div>
+    </a>
+    <a class="card" href="viewer.html?file=patterns/clarity-pass.md">
+      <span class="card-tag tag-pattern">Pattern</span>
+      <div class="card-title">Clarity Pass</div>
+      <div class="card-desc">Revising publication prose with meaning held fixed. Citations, numbers and quotes are script-checked, hedges read-checked, and the loop converges on metrics, a read-through and a fresh reader.</div>
     </a>
     <a class="card" href="viewer.html?file=patterns/instrument-trust.md">
       <span class="card-tag tag-pattern">Pattern</span>
@@ -665,6 +680,11 @@
       <div class="card-title">Inherited PWD Leak</div>
       <div class="card-desc">A spawned shell inherits PWD from its parent, and a config-walking tool trusts it over the real working directory. Strip it.</div>
     </a>
+    <a class="card" href="viewer.html?file=solutions/inherited-environment.md">
+      <span class="card-tag tag-solution">Solution</span>
+      <div class="card-title">Inherited Environment</div>
+      <div class="card-desc">A long-lived server's environment is an ancestor's snapshot. A split home on domain-joined machines, and session markers leaked into every terminal. Restarting the server didn't help.</div>
+    </a>
     <a class="card" href="viewer.html?file=solutions/dropbox-file-locking.md">
       <span class="card-tag tag-solution">Solution</span>
       <div class="card-title">Cloud Sync Locking</div>
@@ -694,6 +714,11 @@
       <span class="card-tag tag-solution">Solution</span>
       <div class="card-title">Stale Prompt Delivery</div>
       <div class="card-desc">A prompt or config fix is in force when the consuming run's checkout contains it — not when you commit it. Verify at the run's own commit before blaming the rule.</div>
+    </a>
+    <a class="card" href="viewer.html?file=solutions/fswatch-atomic-writes.md">
+      <span class="card-tag tag-solution">Solution</span>
+      <div class="card-title">Hot Reload vs Atomic Writes</div>
+      <div class="card-desc">A config watcher that acts only on <code>change</code> ignores editors' rename-over writes. Added jobs never fire, removed ones keep firing, and nothing logs an error.</div>
     </a>
     <a class="card" href="viewer.html?file=solutions/transient-git-einval.md">
       <span class="card-tag tag-solution">Solution</span>

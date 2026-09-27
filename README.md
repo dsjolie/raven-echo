@@ -37,6 +37,7 @@ Reusable approaches that generalize beyond this specific project.
 
 - [patterns/skill-system.md](patterns/skill-system.md) — Extending an AI agent with domain skills via markdown and CLI tools
 - [patterns/hook-system.md](patterns/hook-system.md) — Using agent hooks for notification, detection, and permission enforcement
+- [patterns/cross-agent-support.md](patterns/cross-agent-support.md) — A second agent runtime in the same workspace: the requirement transfers, the mechanism doesn't; enforce mechanism, instruct judgment
 - [patterns/panel-system.md](patterns/panel-system.md) — A minimal panel-based web UI as a window manager for agent tools
 - [patterns/cli-as-api.md](patterns/cli-as-api.md) — CLI tools as the implementation layer, called from Node.js with `--json`
 - [patterns/session-continuity.md](patterns/session-continuity.md) — A save-at-end / restore-at-start stash cycle for working state across agent sessions
@@ -51,6 +52,8 @@ Reusable approaches that generalize beyond this specific project.
 - [patterns/task-system.md](patterns/task-system.md) — Cross-project task management with markdown files, urgency grouping, and autonomous-task tagging
 - [patterns/considerations-and-handlers.md](patterns/considerations-and-handlers.md) — Keeping an agent's own filed suggestions from drowning the human backlog: a separate pile, routed by category to handlers that act on inspectable evidence or surface on doubt
 - [patterns/task-discussions.md](patterns/task-discussions.md) — A per-item "Discuss" button that spawns a context-primed agent session to re-load a stale backlog item's forgotten context before you decide
+- [patterns/decision-desk.md](patterns/decision-desk.md) — One prepared decision a day: the open pile turned into completed staff work, answered with a click that posts back to the thread
+- [patterns/clarity-pass.md](patterns/clarity-pass.md) — Revising publication prose with meaning held fixed: script- and read-checked invariants, and a loop that converges on three different instruments
 - [patterns/instrument-trust.md](patterns/instrument-trust.md) — Making an autonomous system's own checks falsifiable: a check that didn't run is indistinguishable from one that passed
 - [patterns/knowledge-base.md](patterns/knowledge-base.md) — Wiki-style knowledge store with wikilinks, nightly consolidation, and cross-project access
 - [patterns/fleet-memory.md](patterns/fleet-memory.md) — One git-mastered memory index projected into every machine's runtime, with a per-machine local section and judgment on exactly one edge
@@ -73,19 +76,21 @@ Specific edge-case fixes and workarounds — problems that took real debugging t
 - [solutions/process-lifecycle.md](solutions/process-lifecycle.md) — Orphaned child processes when stopping a wrapper launcher
 - [solutions/silent-bind-degradation.md](solutions/silent-bind-degradation.md) — A "best-effort" secondary bind that silently degrades on a restart race; retry what you understand, crash on what you don't
 - [solutions/pwd-p4-leak.md](solutions/pwd-p4-leak.md) — An inherited `PWD` env var that overrides a tool's real working directory
+- [solutions/inherited-environment.md](solutions/inherited-environment.md) — A long-lived server inherits its ancestor's environment: a split home on domain-joined machines, and session markers leaked to every child; why restarting the server didn't help
 - [solutions/dropbox-file-locking.md](solutions/dropbox-file-locking.md) — Build failures and temp-file debris from cloud-sync file locks
 - [solutions/windows-shell-quirks.md](solutions/windows-shell-quirks.md) — Encoding, paths, and shell compatibility on Windows
 - [solutions/cross-platform.md](solutions/cross-platform.md) — Portability seams between Windows and macOS clones of one repo
 - [solutions/xterm-upgrade.md](solutions/xterm-upgrade.md) — Migrating from xterm.js 5.x to 6.x without breaking scrolling
 - [solutions/offline-first-model-serving.md](solutions/offline-first-model-serving.md) — Fully cached model weights, dead server: an expired auth token in an online validation probe, and why local serving must never depend on network validation
 - [solutions/stale-prompt-delivery.md](solutions/stale-prompt-delivery.md) — A prompt or config fix is in force when the consuming run's checkout contains it, not when you commit it
+- [solutions/fswatch-atomic-writes.md](solutions/fswatch-atomic-writes.md) — A hot-reload watcher that silently ignores editors' atomic rename-over writes, so added jobs never fire and removed ones keep firing
 - [solutions/transient-git-einval.md](solutions/transient-git-einval.md) — Transient `Invalid argument` writes inside `.git/objects` on Windows under cloud sync: an open ledger, a pre-declared verdict lane, and the probe worth having
 
 ### Scripts
 
 Self-contained, reusable scripts copied verbatim from the project.
 
-- [scripts/](scripts/) — Guard hook, notification hook, commit-lock CLI and nudge hook, memory-index sync
+- [scripts/](scripts/) — Guard hook, notification hook (and its counterpart for a second agent runtime), commit-lock CLI and nudge hook, memory-index sync
 
 ### Paper Sources
 

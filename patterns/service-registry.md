@@ -38,6 +38,18 @@ Each project in the registry can optionally carry a `server` field:
 
 `label` is optional; the API falls back to the project name when it's absent. No other fields are required.
 
+A project can have several services: a `servers` array sits beside or in place of `server`, and the hub flattens both. An entry may also carry `start` (an argv array) and `cwd` (relative to the project root), which turn a status-only entry into one the dashboard can start.
+
+### Static sites
+
+Not everything worth serving is a server. Built documentation, a compiled client, or a demo page is a directory of files. Rather than running a dev server per site, the hub serves registered directories itself under `/s/<slug>/`:
+
+```json
+"statics": [{ "slug": "xr2", "path": "web-ui/xr-iwsdk/dist", "label": "XR client (build)" }]
+```
+
+`path` resolves against the project root; register build-output directories rather than repo roots. Statics are always on while the hub runs, so their liveness is "the directory exists", with no ping. They inherit everything the hub already has (VPN binds, HTTPS, the per-machine fleet proxy) for free. Serving goes through the same streaming route the reader uses for documents (ETag, Range), path resolution refuses anything that escapes the directory, and dotfiles are never served. Pages must use relative URLs, because they live under a prefix rather than at a root. The feature ran in production for about four weeks with nine sites before it was committed. It was held until use had verified it, not just tests.
+
 ### Server-side: discovery and liveness
 
 The `/api/services` endpoint reads the registry, filters for entries with a `server` field, then pings each URL in parallel before responding:
@@ -118,3 +130,6 @@ The registration itself is a JSON in-place update — the CLI reads the file, mu
 - **Host rewriting assumes one machine.** If a registered service genuinely runs on a different host — a remote VM, a container with a separate IP — the `localhost` rewrite will produce a broken URL. The pattern only holds under the single-machine assumption. Register the actual hostname for multi-host scenarios.
 
 - **No concurrent-write protection.** The CLI reads and rewrites the entire registry JSON. Two simultaneous `register` calls could clobber each other. Acceptable for a single-user setup; not appropriate if multiple processes might write concurrently.
+
+- **A register command must merge, not replace.** The first CLI built a fresh `{url, label}` and assigned it over the existing entry. Re-registering a service to fix its label silently dropped a hand-added `start` command and turned a startable service into a status-only one, with no error. Now the URL is the identity, `register` merges and leaves omitted fields alone, and `unregister` refuses to guess when a project has several services, listing them instead. The same audit found that `list` and `ports` read only the single `server` field. Five of thirteen services had been invisible to the CLI all along, two of them the hub's own. When the read path supports a richer shape than the write path, the write path and the tooling around it drift toward the poorer one. Keep one writer module for the shape the reader expects.
+- **A liveness probe should accept a self-signed certificate.** Dev servers on a LAN commonly serve per-machine self-signed certs. The default TLS check rejected them, so every HTTPS service read as permanently down, and the dashboard's start action took its slow-starter branch for servers that had come up fine. The probe asks only whether anything answers on the port, and nothing else trusts its answer, so skipping certificate verification there is correct. Say so in a comment, so nobody later reads it as a general TLS opt-out.

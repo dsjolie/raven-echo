@@ -244,6 +244,33 @@ specifically for the executable, not the port, so a port-based Allow rule doesn'
 override it. `profile=any` on the Allow rule prevents it from silently disabling when
 Windows reclassifies a Wi-Fi or VPN adapter between Public and Private.
 
+**Field notes from the fleet (Sep 2026):**
+
+- **The version-manager note happened in practice.** A patch-level runtime bump moved
+  `node.exe`, the popup was dismissed, and the new Block rules took the server offline over
+  the VPN. Remote desktop kept working on its own built-in all-profile rule, so the outage
+  looked like a tunnel fault. That is the tell: *RDP works, every server port is dead.*
+  The version manager's stable junction resolves to the versioned path, so it does not
+  protect the rule. Two program rules for two runtime versions, one Allow and one Block,
+  date the outage.
+- **Check provenance before blaming IT.** Every such rule inspected carried
+  `PolicyStoreSourceType: Local` and a `Query User{…}` name: a dismissed popup, not group
+  policy. An earlier write-up had called the same rules vendor-installed from one negative
+  data point, and a reviewer had to catch it.
+- **Profile classification decides, not the medium.** On a domain-joined machine the VPN
+  adapter came up *Public*, while campus wifi authenticated to the domain and came up
+  *DomainAuthenticated*, straight into the old Blocks. A recommendation to "leave those
+  Blocks alone unless you want wired access" was wrong on its axis within the hour.
+- **No-admin escape hatch.** Deleting Block rules needs admin, and on a managed machine
+  the user may no longer have it. Pointing the launcher at the old runtime binary, which
+  still has its Allow rule, restored service without admin. This works only within one ABI
+  (same major version), so native modules load without a rebuild. The real fix still needs
+  admin once: delete the Blocks and add port-scoped VPN Allows.
+- **Diagnose in order: bind, transport, filter.** Is the server listening on the address?
+  Does the tunnel pass traffic? Is an inbound filter dropping it? One command each. If an
+  outbound request from the unreachable box succeeds while peers get nothing, the problem
+  is an inbound filter.
+
 ---
 
 ## Cross-references

@@ -27,7 +27,8 @@ Claude Code (the engine)
   │     ├── lib/          Service modules (terminals, tasks, sessions, threads,
   │     │                 status cache, memory monitor, files)
   │     ├── public/       Client panels + the core app shell
-  │     ├── hooks/        Agent hook scripts (notify, guard, gitlock-nudge, away-reject)
+  │     ├── hooks/        Agent hook scripts (notify, guard, gitlock-nudge, away-reject,
+  │     │                 and a registration hook for a second agent runtime)
   │     └── data/         Runtime config (jobs.json, documents.json, notifications.json)
   │
   ├── desktop-app/    Native shell (Wails / Go) wrapping one or more web-ui instances
@@ -64,7 +65,7 @@ A Python CLI owns all task-file parsing, deadline logic, and project resolution,
 Hooks fire scripts on agent lifecycle events, and they're the primary way Raven integrates with the agent without modifying it. They run at several complexity levels:
 
 1. **Notification** — a lightweight hook fires on session start/stop and permission requests, POSTs a single event to the web UI, and exits. The UI uses these to track terminal state (running? awaiting permission?).
-2. **Guard** — a mid-weight PreToolUse hook fires on every tool call and reads a mode file to decide its behavior: in default mode it catches command patterns that would trigger permission prompts and returns guidance; in away mode it additionally blocks tools that need prompts, enabling unattended runs behind a whitelist.
+2. **Guard** — a mid-weight PreToolUse hook fires on every tool call and reads a mode file to decide its behavior: in default mode it catches command patterns that would trigger permission prompts and returns guidance; in away mode it additionally blocks tools that need prompts, enabling unattended runs behind a whitelist. It also reads the runtime's own permission mode. Rules that exist only to avoid prompts skip when the runtime auto-approves, and safety and correctness rules fire in every mode.
 3. **Advisory nudges** — a PostToolUse hook reminds a session to release the commit-lock after committing; a PermissionRequest hook auto-rejects prompts in away mode.
 
 Exit codes are the API: 0 allows, nonzero blocks with a message surfaced to the agent so it can adapt. Behavior that needs to change at runtime (the guard's mode) lives in an external file the hook reads on each invocation, not in the hook itself.
@@ -90,7 +91,7 @@ The scheduler and the guard's away mode together enable unattended overnight ope
 
 ## Thread Routing and Events
 
-External processes — cron jobs, sessions on other machines, skills — message *threads*, not sessions. One endpoint (`POST /api/event`) appends the event to a durable per-thread log and, if a session is live on that thread, injects a short doorbell pointing at the log. The principle: **files carry content, injection carries doorbells** — a message survives whether or not anyone is home, and the API never grows payload schemas. Injections are verified after the fact against the prompt-submission log; misses are logged for the morning sweep rather than filed as tasks. Cross-machine messaging is the same endpoint on the target's VPN address. Receiving threads treat events as *requests, not authorizations* — the session verifies an event's claims before mutating anything. Details in [patterns/thread-routing.md](patterns/thread-routing.md).
+External processes — cron jobs, sessions on other machines, skills — message *threads*, not sessions. One endpoint (`POST /api/event`) appends the event to a durable per-thread log and, if a session is live on that thread, injects a short doorbell pointing at the log. The principle: **files carry content, injection carries doorbells** — a message survives whether or not anyone is home, and the API never grows payload schemas. Injections are verified after the fact against the prompt-submission log; misses are logged for the morning sweep rather than filed as tasks. Cross-machine messaging is the same endpoint on the target's VPN address. Receiving threads treat events as *requests, not authorizations* — the session verifies an event's claims before mutating anything. The server does not replay events into a session that starts later. A thread that expects answers reads its own log when it wakes, so `delivered: false` means "read only if the receiver pulls". Details in [patterns/thread-routing.md](patterns/thread-routing.md).
 
 ## Interactive Artefacts and Worklogs
 
@@ -118,7 +119,7 @@ Success created the next problem: three roughly-20 GB tenants ended up sharing o
 
 ## Service Registry
 
-Projects register web services (dev servers, doc previews, tool UIs) by adding a `server` field to their registry entry. The web UI auto-discovers them, pings each for liveness (HTTP HEAD, short timeout), and shows status dots in the dashboard. For remote access, the browser rewrites a service's `localhost` host to the current page's hostname — no proxy, no DNS, just URL rewriting on the client.
+Projects register web services (dev servers, doc previews, tool UIs) by adding a `server` field to their registry entry. The web UI auto-discovers them, pings each for liveness (HTTP HEAD, short timeout), and shows status dots in the dashboard. For remote access, the browser rewrites a service's `localhost` host to the current page's hostname — no proxy, no DNS, just URL rewriting on the client. A project may register several services, each optionally with a start command. Directories of built files (documentation, compiled clients) are registered as **statics** and served by the hub itself under `/s/<slug>/`, with no process to run. Details in [patterns/service-registry.md](patterns/service-registry.md).
 
 ## Skills as the Extension Mechanism
 
@@ -138,9 +139,21 @@ The project's Tasks panel became a **Project Focus** cockpit on top of this: sub
 
 Backlog items lose their context faster than their content. A per-item "Discuss" button spawns a fresh, context-primed agent session in a modal that — before the human types — reconstructs when and why the item was filed (git-blame), what it points at, and whether its premise still holds. The conversation is scoped to one item, ephemeral (its own lightweight file-based pile, not a thread), and lands on a concrete disposition. The modal is backed by a real PTY terminal; an Elevate action re-homes it into a normal terminal tab without killing the session when a quick discussion turns into real work. This works because the client event bus is multi-subscriber, so a modal and a tab can share one session's output stream.
 
+## The Decision Desk
+
+Discussions help with one item when the human picks it up. The pile as a whole needed the opposite direction: the system choosing what to ask. A standing thread runs each evening, reads the whole open pile, and raises **one prepared decision**, written as completed staff work: what happens on yes, why, which items it retires, and whether it can be undone. A single yes may settle a whole class of items. The human answers with Do it, Drop it (reject this framing, never offered again) or Close (not today), with an optional comment, in a modal whose click posts an event to the thread. On yes, the thread executes the suggestion, re-checking each item's premise as it goes, and commits exactly the files it touched. It is run as a two-week experiment before any restructuring of the task system. Details in [patterns/decision-desk.md](patterns/decision-desk.md).
+
 ## Session Management
 
-Sessions are tracked through Claude Code's own JSONL transcript files. A persistent name cache scans them for custom titles, using file modification times to skip unchanged transcripts — this replaced an earlier index-based approach that was slower and more brittle. The sessions panel exposes recent sessions with metadata and supports resuming by UUID.
+Sessions are tracked through the agent's own JSONL transcript files. A persistent name cache scans them for custom titles, using file modification times to skip unchanged transcripts — this replaced an earlier index-based approach that was slower and more brittle. The sessions panel exposes recent sessions with metadata and supports resuming by UUID. Sessions from a second agent runtime are read by a separate parser and tagged by agent, so a thread can link sessions from both and each resume button launches the right one.
+
+## A Second Agent Runtime
+
+Raven is built on one agent runtime, and a second one (OpenAI's Codex CLI) now works in the same repos. The rule is that **the requirement transfers but the mechanism does not**. The second runtime's global context file is generated from the same source documents as the first's, so orientation is shared. Session registration uses the second runtime's own hook system, which reports the same field names. Its native memory is left on, with anything worth keeping promoted at consolidation. The first runtime's guard is *not* ported, because the second runtime has its own sandbox and approval policy. What is enforced is mechanism (where a write may land), and what is instructed is judgment (when to read memory). Details in [patterns/cross-agent-support.md](patterns/cross-agent-support.md).
+
+## Publication Prose
+
+Papers and chapters the system drafts go through a **clarity pass** that treats meaning as an invariant. A script checks citations, cross-references, numbers and quotations between versions. The editing agent read-checks claim strength, concessions and attribution. The pass iterates to convergence with three different instruments: metrics aimed at a band, a full read-through, and a fresh-context reader on a judgment-tier model that lists stumbles but may not rewrite. Review happens in a sentence-aligned diff with a keep/revert choice per change. Details in [patterns/clarity-pass.md](patterns/clarity-pass.md).
 
 ## Memory and Continuity
 
@@ -172,4 +185,4 @@ Raven started Windows-only and now also runs on macOS and a headless Linux node 
 
 ## Machine Fleet
 
-The fleet itself became first-class. A single git-tracked **machine registry** (hostname → name, platform, role, VPN address, availability, capabilities, proxy port) feeds everything that needs a roster: a fleet status card with availability-aware liveness (a machine that's off *on schedule* renders grey, not red), the desktop launcher, and **backend switching** — every server reverse-proxies every other machine's UI on a globally unique per-machine port, so `<any-host>:<machine's-port>` reaches that machine from anywhere and links compose correctly through switched views. Proxied requests are header-stamped, and the backend blocks mutations that would land in the wrong machine's working tree. Coordination channels are chosen by what's moving: git for durable shared truth, direct HTTP over the VPN for control (events, liveness, dispatch), a shared folder for bulk artifacts only. Details in [patterns/machine-fleet.md](patterns/machine-fleet.md).
+The fleet itself became first-class. A single git-tracked **machine registry** (hostname → name, platform, role, VPN address, availability, capabilities, proxy port) feeds everything that needs a roster: a fleet status card with availability-aware liveness (a machine that's off *on schedule* renders grey, not red), the desktop launcher, and **backend switching** — every server reverse-proxies every other machine's UI on a globally unique per-machine port, so `<any-host>:<machine's-port>` reaches that machine from anywhere and links compose correctly through switched views. Proxied requests are header-stamped, and the backend blocks mutations that would land in the wrong machine's working tree. Coordination channels are chosen by what's moving: git for durable shared truth, direct HTTP over the VPN for control (events, liveness, dispatch), a shared folder for bulk artifacts only. The fleet now includes two organisation-managed, domain-joined Windows machines, which differ from personal ones in firewall profiles and home-directory resolution. Because the hub has no authentication, its bind list is its whole security model. A runtime toggle can add one private-range LAN interface for devices that cannot join the VPN (headsets on a campus network), and it resets to loopback plus VPN on every start. Details in [patterns/machine-fleet.md](patterns/machine-fleet.md).

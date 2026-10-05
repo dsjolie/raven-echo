@@ -62,6 +62,7 @@ Reusable approaches that generalize beyond this specific project.
 - [patterns/audio-pipeline.md](patterns/audio-pipeline.md) — Document-to-speech where the rewrite step matters more than the engine, with content-hashed caching and a house voice anchored by conditioning rather than sampling
 - [patterns/gpu-tenancy.md](patterns/gpu-tenancy.md) — Arbitrating one GPU between several resident model services: a proxy, because a lease is arbitration by cooperation and anything that can reach a backend directly walks past it
 - [patterns/figure-generation.md](patterns/figure-generation.md) — Paper figures from an agent session: SVG code for structure, structured JSON captions for pictures — the caption, not the image, is the artifact under iteration
+- [patterns/narrated-video.md](patterns/narrated-video.md) — Narrated video from one storyboard: the narration sets the timing, every TTS clip is transcribed and checked against its line, and loudness is measured per shot because a whole-file figure cannot see drift
 - [patterns/interactive-artefacts.md](patterns/interactive-artefacts.md) — HTML reports that collect their own review: choice widgets and comments persisting to sidecars, plus live JSONL worklogs that freeze into commentable reports
 - [patterns/desktop-launcher.md](patterns/desktop-launcher.md) — A native Wails shell that manages multiple local and remote web-app instances
 - [patterns/echo-generation.md](patterns/echo-generation.md) — Auto-generating shareable knowledge extracts from a private repo

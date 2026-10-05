@@ -47,7 +47,7 @@ The PreToolUse hook receives tool name and input as JSON on stdin, writes guidan
 - **Exit 0** — allow the tool call to proceed
 - **Exit 2** — block, with the stderr content becoming the agent's error message
 
-This exit-code convention is what separates "block with guidance" from "hook error". Exit 2 is a clean block the agent sees as a legible refusal. An unexpected non-zero exit code would be treated as a hook failure and might fall back to prompting the user — the wrong outcome in away mode.
+This exit-code convention is what separates "block with guidance" from "hook error". Exit 2 is a clean block the agent sees as a legible refusal. Any other non-zero exit is a hook *error*, which the runtime treats as non-blocking: the tool call goes ahead and the only trace is a stderr line. An uncaught exception inside the hook therefore lets the call through with every check after the throw skipped. In other words, the guard fails *open* on its own bugs (see Gotchas).
 
 ### Execution order inside the hook
 
@@ -105,17 +105,19 @@ if (/^\s*(grep|rg)\b/.test(rawCmd)) { block('Use the built-in Grep tool...'); }
 if (/\|\s*python3?\s+-c\b/.test(rawCmd)) { block('Use the dedicated CLI tool...'); }
 ```
 
-One non-obvious detail: `git commit -m "..."` bodies can contain tokens that match guardrail patterns — phrases about venv activation, semicolons in prose, mentions of destructive git flags. Before running any body-content token scan (but not the `$()` check, which fires before git sees the message), commit-message bodies are stripped:
+One non-obvious detail: the Bash tool's `command` field carries prose as well as shell code. Commit messages, task text, `echo` output and heredoc bodies can all contain tokens that match guardrail patterns, such as a sentence about venv activation, a semicolon, or the name of a destructive flag. The first fix stripped quoted `git commit -m` bodies before the token scan. It was added after six attested false positives, and it covered only commits. Every other prose-carrying command kept tripping rules, and so did the data-driven rules, which read the raw command.
 
-```javascript
-function stripCommitMessageBodies(cmd) {
-  return cmd
-    .replace(/(-m|-F)(\s+)"((?:[^"\\]|\\.)*)"/g, '$1$2""')
-    .replace(/(-m|-F)(\s+)'((?:[^'\\]|\\.)*)'/g, "$1$2''");
-}
-```
+The current version blanks prose for every content scan: the data-driven rules, the always-on tokens, the recursive-walker check and the away-mode compound check. It blanks three kinds of text:
 
-This was added after six attested false positives. The guard itself is not turned off — the scanning target is narrowed.
+1. **Heredoc bodies**, unless the command runs them as code. That means an interpreter or `ssh` at command position on the header line, or an unquoted delimiter, which lets `$()` and backticks in the body execute.
+2. **Quoted message values** of `-m`, `-F`, `--message` and `--summary`, on any command.
+3. **Every quoted argument** of the project's task CLI, and of `echo`/`printf` when nothing is piped. This applies only to the first command, so a walker placed after a `;` is still seen.
+
+A double-quoted value that contains `$()` or a backtick is never blanked, because the shell will run it. Two checks deliberately keep reading the raw command: the readers for deny-listed paths and the `$()` rule. A heredoc that writes a key file still blocks, as does a `sed` replacement that names one. That keeps them on the safe side.
+
+A companion helper removes a `grep`/`rg` search pattern before the walker decides what root is being searched, so a pattern that happens to look like a path is not treated as the target. It is quote-aware, and it removes nothing when `-e` or `-f` is present. Data-driven rules that must see raw text opt out with `"raw": true`.
+
+The guard itself was never turned off to fix this. The scanning target was narrowed, and the narrowing now follows what the shell will execute instead of which command happens to be running. The test suite includes cases that must still block: real compounds, `--force`, `$()` inside a message, shell heredocs, and `echo` that must not start whitelisting the task CLI.
 
 ### Tier 2: Away-mode whitelist
 
@@ -196,7 +198,7 @@ The web-approve state is a JSON file with `{active, expires_at, tools, bash_pref
 
 ## Gotchas
 
-**False positives require narrowing the scan target, not disabling the check.** The commit-message body problem (attested six times) was solved by stripping message bodies before the token scan, not by weakening the pattern. Disabling the guard is itself blocked by the guard: the hook catches `raven-guard.sh off` and returns guidance to try the command without disabling first.
+**False positives require narrowing the scan target, not disabling the check.** The commit-message body problem (attested six times) was solved by stripping message bodies before the token scan, not by weakening the pattern. The strip was later generalised to prose in any argument (see *Tier 1*), after the commit-only version had left most prose-carrying commands uncovered. Disabling the guard is itself blocked by the guard: the hook catches `raven-guard.sh off` and returns guidance to try the command without disabling first.
 
 **Compound operators are blocked after whitelisting, not before.** A whitelisted command that uses `&&` gets blocked. This is intentional: the compound form would re-trigger CC's own security prompt with no user present to approve it. The correct fix is always to split the command, not to relax the compound check.
 
@@ -222,12 +224,22 @@ Two things generalize. **Check that a rule's suggested alternative exists in the
 
 **Off is sticky, and a disabled guard is silent rather than absent.** The mode file was found reading `off` four days after someone set it that way. In that mode the PreToolUse hook exits after the commit-lock check and the permission hook returns early, so nothing can block or bounce anything — and the automated nightly runs during those four days duly reported "zero guard bounces" as if that were a property of the night. One of them even attributed a bounce to an away-mode whitelist that could not have been executing. The scheduled auto-away job cannot correct this: it only promotes *default* → *away*, so a deliberate *off* survives, which is correct behaviour for a user setting. The missing piece is visibility — nothing surfaced which mode a given run was executing under. Any report asserting an absence of guard events should carry the live mode beside it. Generalised in [instrument-trust.md](instrument-trust.md).
 
-**Fail-open is a deliberate policy for correctness mechanisms, not laziness.** The commit-lock and the web-approve check both fail open. For the lock, an advisory mechanism that can brick a repo is worse than one that occasionally allows a concurrent operation. For web-approve, a parse error on the state file should not unexpectedly lock out web access mid-task. Fail-open is correct here because the mechanism is advisory; fail-open on a security check would be wrong.
+**Fail-open is a deliberate policy for correctness mechanisms, not laziness.** The commit-lock and the web-approve check both fail open. For the lock, an advisory mechanism that can brick a repo is worse than one that occasionally allows a concurrent operation. For web-approve, a parse error on the state file should not unexpectedly lock out web access mid-task. Fail-open is correct here because the mechanism is advisory; fail-open on a security check would be wrong. The catch is that the hook as a whole fails open on an uncaught exception, whatever its authors intended for each check. That is a property of how the runtime treats hook errors, and the half-applied-edit gotcha below shows what it cost.
 
 **A block that the new mode makes pointless gets the whole guard switched off.** Before permission-mode gating, sessions in the runtime's auto mode kept hitting prompt-avoidance blocks on legitimate calls, such as `git -C` against a folder outside the project, and the reflex fix was to set the guard to *off*. Setting it off removed the safety rules along with the pointless ones. When a rule's reason for existing depends on context, encode that context in the rule. Otherwise the operator's workaround will be broader than the rule.
 
 **Text-matching rules must count prose-carrying commands among their negative cases.** The Bash tool's `command` field carries shell code, but it also carries commit bodies, task text and `echo` prose. One rule caught interpreter heredocs whose body contains backslashes, because the tool call is JSON-encoded and one escaping level vanishes before the interpreter sees it. That rule blocked the commit that shipped it, one minute after it was called verified, because the commit message described the construction. The repair was to anchor the interpreter name to **command position** (start of line, or after `;`, `&&`, `||` or `(`, allowing `VAR=value` prefixes). That is where a heredoc that actually runs has to be, and prose cannot satisfy it. The test suite had followed good discipline: it built the pattern from a regex literal and serialised it rather than hand-escaping, it tested the pattern *as read back from the stored rules file* rather than a re-declared copy, and it replayed real hook payloads in both directions. It still missed this, because none of its negative cases was prose.
 
 **A guard can make an operating-system hazard impossible, not just discouraged.** On a machine with a cloud drive that downloads files on first read, an orphaned recursive `grep` over the drive root walked hundreds of thousands of placeholder files overnight, downloaded tens of gigabytes, and filled the system disk under the nightly pipeline. The response was a rule, not a note. The guard blocks recursive walkers (`grep -r`, `rg`, `find`, `fd`, `du`, `tree`, `ls -R`, and the built-in search tools) when they target a hydrating root, a home root or a drive root, or run from inside the cloud drive with no narrower path. The block message teaches a deliberate walk: list the top level without recursion, pick the code folders, search each one. A proposed orphan-reaper was dropped the same day. The rule is the control.
+
+**The hook fails open on its own exceptions, so a half-applied edit to it is a silent hole.** An approved change was applied as four parallel edits to the live hook. The first edit removed a helper function. The agent runtime's safety classifier refused two of the other three as self-modification, and the fourth waited at a permission prompt overnight. Two call sites were left naming a function that no longer existed. Every `git commit` from a session holding the commit lock then threw, exited 1, and ran with none of the guard's later checks. The commit-lock check sits before the throw and kept working, which made the hole harder to notice. The nightly pipeline found the half-applied state, and the next morning's session restored the file from version control.
+
+Three rules for changing a guard follow from this:
+
+1. **Keep every intermediate state valid.** Add the new helper before removing the old one, or make the whole change in one write. A refused edit never comes back on its own, so a batch that is partly applied stays partly applied.
+2. **Build beside, test there, install in one copy.** Write the new version as an unregistered candidate file. Point both test suites at it through an override variable, then install it with a single copy and re-run the suites against the live hook.
+3. **Probe after each step** by piping a JSON tool call into the hook and reading the exit code. The probe must be valid JSON. A malformed probe exits 0 through the parse fallback and looks like success.
+
+**The classifier's verdict is not lifted by consent given in conversation.** In the runtime's auto mode, the classifier refused even a copy of the hook to a candidate file after the human had said "go ahead" in chat. What worked was leaving auto mode, so every edit went through a normal permission prompt. A change to the guard therefore needs a human present. A scheduled job that edits the guard cannot finish unattended, however clearly the change was approved.
 
 **A fresh clone has no guard until its settings are written.** The hooks are registered in the runtime's per-user settings file, which a new install does not have. During machine setup, which is exactly when two sessions are most likely to share a clone, neither the guardrails nor the commit-lock exist. On one new clone, two setup sessions committed freely and one rebased over the other's unpushed work. Registering the hooks mid-session made the gate appear at the next `git commit`, which is also the cleanest proof that the registration took.
